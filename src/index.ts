@@ -91,20 +91,56 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   switch (name) {
     case 'analyze-desktop-now':
-      // TODO: Implement desktop analysis
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              status: 'not_implemented',
-              message: 'Desktop analysis feature coming soon',
-              requested_duration: toolArgs?.duration_seconds || 30,
-              analysis_type: toolArgs?.analysis_type || 'full_analysis',
-            }),
-          },
-        ],
-      };
+      try {
+        const duration = toolArgs?.duration_seconds || 30;
+        const analysisType = toolArgs?.analysis_type || 'full_analysis';
+        
+        // Check if capture is active
+        const status = desktopCapture.getStatus();
+        if (!status.isRecording) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  status: 'error',
+                  message: 'No active desktop capture. Please start continuous capture first.',
+                }),
+              },
+            ],
+          };
+        }
+
+        // Extract the requested video segment
+        const videoPath = await desktopCapture.extractLastNSeconds(duration);
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'success',
+                message: `Extracted ${duration} seconds of desktop video`,
+                videoPath,
+                analysisType,
+                bufferStatus: (status as any).bufferStatus,
+              }),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'error',
+                message: error instanceof Error ? error.message : 'Failed to analyze desktop',
+              }),
+            },
+          ],
+        };
+      }
 
     case 'start-continuous-capture':
       try {
