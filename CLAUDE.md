@@ -1,0 +1,121 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+This is an MCP (Model Context Protocol) server for desktop video capture and analysis on macOS. The project enables Claude Code to analyze desktop activity through intelligent video capture and extraction with a 30-minute rolling buffer.
+
+## Current State
+
+This project is in the initial planning phase. Only research documentation exists (INITIAL_RESEARCH.md). No code has been implemented yet.
+
+## Project Initialization
+
+Since this is a new project, you'll need to initialize it first:
+
+```bash
+# Initialize npm project
+npm init -y
+
+# Install core dependencies
+npm install @modelcontextprotocol/sdk
+npm install aperture-node
+npm install typescript @types/node
+
+# Install development dependencies
+npm install -D tsx nodemon @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint prettier
+```
+
+## Planned Architecture
+
+### Core Components
+1. **MCP Server**: TypeScript implementation using `@modelcontextprotocol/sdk`
+2. **Desktop Capture**: aperture-node for native macOS screen recording
+3. **Buffer System**: 30-minute rolling buffer with hybrid memory/disk storage
+4. **Video Processing**: H.264 encoding with VideoToolbox hardware acceleration
+
+### Key Tools to Implement
+- `analyze-desktop-now`: Extract and analyze the last N seconds of desktop activity
+- `start-continuous-capture`: Begin recording desktop
+- `stop-capture`: Stop recording
+- `get-capture-status`: Check capture status
+- `configure-capture`: Update capture settings
+
+## Development Commands
+
+Once the project is set up, these commands should be configured in package.json:
+
+```bash
+# Run the MCP server
+npm run dev
+
+# Build TypeScript
+npm run build
+
+# Run tests
+npm test
+
+# Lint code
+npm run lint
+
+# Type check
+npm run typecheck
+```
+
+## Technical Requirements
+
+### macOS Permissions
+The application requires Screen Recording permission in System Preferences.
+
+### Performance Targets
+- CPU usage: < 15% sustained
+- Memory: < 1.5GB total allocation
+- Capture latency: < 100ms
+- Extraction time: < 2 seconds for 30-second clip
+
+### Video Encoding Settings
+- Codec: H.264 with VideoToolbox
+- Quality: 65-75 (1-100 scale)
+- Frame rate: 30fps
+- Keyframe interval: Every 90 frames (3 seconds)
+- Bitrate: 4 Mbps
+
+## Project Structure (Recommended)
+
+```
+mcp-desktop-dvr/
+├── src/
+│   ├── index.ts          # MCP server entry point
+│   ├── capture/          # Desktop capture implementation
+│   ├── buffer/           # Circular buffer system
+│   ├── analysis/         # Video analysis tools
+│   └── types/            # TypeScript type definitions
+├── tests/                # Test files
+├── package.json
+├── tsconfig.json
+├── .eslintrc.json
+└── CLAUDE.md
+```
+
+## Implementation Priority
+
+Follow the roadmap in INITIAL_RESEARCH.md:
+1. Basic Capture MCP (Week 1)
+2. Circular Buffer System (Week 2)
+3. Analysis Features (Week 3)
+4. Production Optimization (Week 4)
+
+## MCP Configuration
+
+Add to Claude Desktop configuration:
+```json
+{
+  "mcpServers": {
+    "desktop-dvr": {
+      "command": "node",
+      "args": ["path/to/mcp-desktop-dvr/dist/index.js"]
+    }
+  }
+}
+```
