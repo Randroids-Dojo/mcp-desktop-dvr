@@ -1,6 +1,9 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { DesktopCapture } from './capture/desktopCapture.js';
+
+const desktopCapture = new DesktopCapture();
 
 const server = new Server(
   {
@@ -84,6 +87,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 // Handle tool calls
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+  const toolArgs = args as Record<string, any>;
 
   switch (name) {
     case 'analyze-desktop-now':
@@ -95,53 +99,92 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             text: JSON.stringify({
               status: 'not_implemented',
               message: 'Desktop analysis feature coming soon',
-              requested_duration: args?.duration_seconds || 30,
-              analysis_type: args?.analysis_type || 'full_analysis',
+              requested_duration: toolArgs?.duration_seconds || 30,
+              analysis_type: toolArgs?.analysis_type || 'full_analysis',
             }),
           },
         ],
       };
 
     case 'start-continuous-capture':
-      // TODO: Implement capture start
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              status: 'not_implemented',
-              message: 'Capture start feature coming soon',
-              fps: args?.fps || 30,
-              quality: args?.quality || 70,
-            }),
-          },
-        ],
-      };
+      try {
+        await desktopCapture.startCapture({
+          fps: toolArgs?.fps || 30,
+          quality: toolArgs?.quality || 70,
+        });
+        const status = desktopCapture.getStatus();
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'success',
+                message: 'Desktop capture started',
+                isRecording: status.isRecording,
+                fps: status.fps,
+                quality: status.quality,
+                outputPath: status.outputPath,
+              }),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'error',
+                message: error instanceof Error ? error.message : 'Failed to start capture',
+              }),
+            },
+          ],
+        };
+      }
 
     case 'stop-capture':
-      // TODO: Implement capture stop
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              status: 'not_implemented',
-              message: 'Capture stop feature coming soon',
-            }),
-          },
-        ],
-      };
+      try {
+        const outputPath = await desktopCapture.stopCapture();
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'success',
+                message: 'Desktop capture stopped',
+                outputPath,
+              }),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'error',
+                message: error instanceof Error ? error.message : 'Failed to stop capture',
+              }),
+            },
+          ],
+        };
+      }
 
     case 'get-capture-status':
-      // TODO: Implement status check
+      const status = desktopCapture.getStatus();
       return {
         content: [
           {
             type: 'text',
             text: JSON.stringify({
-              status: 'not_implemented',
-              message: 'Status check feature coming soon',
-              is_recording: false,
+              status: 'success',
+              isRecording: status.isRecording,
+              startTime: status.startTime,
+              duration: status.duration,
+              fps: status.fps,
+              quality: status.quality,
+              outputPath: status.outputPath,
             }),
           },
         ],
