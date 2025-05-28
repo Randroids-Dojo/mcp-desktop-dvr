@@ -46,12 +46,17 @@ export class CircularBuffer {
       await this.startNewSegment(now);
     }
 
-    // TODO: Append video chunk to current segment
-    // For now, we'll just track the segment metadata
+    // Copy the video chunk to the current segment file
+    // In a real implementation, we would append to the segment file
+    // For now, we'll copy the file and track metadata
     if (this.currentSegment) {
       this.currentSegment.endTime = now;
       const stats = await fs.stat(videoPath);
       this.currentSegment.sizeBytes += stats.size;
+      
+      // Copy the video data to the segment file (simplified for now)
+      const videoData = await fs.readFile(videoPath);
+      await fs.appendFile(this.currentSegment.filePath, videoData);
     }
 
     // Remove old segments that exceed the buffer duration
@@ -66,10 +71,15 @@ export class CircularBuffer {
     const now = new Date();
     const startTime = new Date(now.getTime() - seconds * 1000);
     
+    // Get all segments including current
+    const allSegments = [...this.segments];
+    if (this.currentSegment) {
+      allSegments.push(this.currentSegment);
+    }
+    
     // Find relevant segments
-    const relevantSegments = this.segments.filter(segment => 
-      segment.endTime >= startTime || 
-      (this.currentSegment?.id === segment.id && segment.startTime <= now)
+    const relevantSegments = allSegments.filter(segment => 
+      segment.endTime >= startTime && segment.startTime <= now
     );
 
     if (relevantSegments.length === 0) {
@@ -90,8 +100,16 @@ export class CircularBuffer {
     totalSizeBytes: number;
     bufferDurationSeconds: number;
   } {
-    const totalSizeBytes = this.segments.reduce((sum, seg) => sum + seg.sizeBytes, 0);
-    const oldestSegment = this.segments[0];
+    let totalSizeBytes = this.segments.reduce((sum, seg) => sum + seg.sizeBytes, 0);
+    let totalSegments = this.segments.length;
+    
+    // Include current segment in counts
+    if (this.currentSegment) {
+      totalSizeBytes += this.currentSegment.sizeBytes;
+      totalSegments += 1;
+    }
+    
+    const oldestSegment = this.segments[0] || this.currentSegment;
     const newestSegment = this.currentSegment || this.segments[this.segments.length - 1];
     
     let bufferDurationSeconds = 0;
@@ -101,7 +119,7 @@ export class CircularBuffer {
 
     return {
       isActive: this.currentSegment !== null,
-      totalSegments: this.segments.length,
+      totalSegments,
       oldestSegmentTime: oldestSegment?.startTime || null,
       newestSegmentTime: newestSegment?.endTime || null,
       totalSizeBytes,
