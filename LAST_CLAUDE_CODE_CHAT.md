@@ -7,6 +7,22 @@ claude
 │   cwd: /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr  │
 ╰─────────────────────────────────────────────────────╯
 
+╭─────────────────────────────────────────────────────╮
+│ ✻ Welcome to Claude Code!                           │
+│                                                     │
+│   /help for help, /status for your current setup    │
+│                                                     │
+│   cwd: /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr  │
+╰─────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────╮
+│ ✻ Welcome to Claude Code!                           │
+│                                                     │
+│   /help for help, /status for your current setup    │
+│                                                     │
+│   cwd: /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr  │
+╰─────────────────────────────────────────────────────╯
+
 
 > Implement the next smallest, but meaningful change.
 
@@ -2865,12 +2881,163 @@ claude
      5  import { homedir } from 'os';
      6  import { CircularBuffer } from '../buffer/circularBuffer.js';
 
-✻ Tidying… (95s · ↑ 2.7k tokens · esc to interrupt)
+⏺ Now add development notes to CLAUDE.md:
+
+⏺ Update(CLAUDE.md)…
+  ⎿  Updated CLAUDE.md with 27 additions and 1 removal
+     118      }
+     119    }
+     120  }
+     121  ```
+     121 \ No newline at end of file
+     122  ```
+     123  
+     124  ## Development Notes
+     125  
+     126  ### Essential Development Workflow
+     127  1. Make code changes
+     128  2. `npm run build` 
+     129  3. **Restart Claude Desktop** (crucial - it caches the built code)
+     130  4. Test the changes
+     131  
+     132  ### Debugging
+     133  - Debug logs are written to `~/.mcp-desktop-dvr/debug.log`
+     134  - Essential logging is kept for production use
+     135  - Use `tail -f ~/.mcp-desktop-dvr/debug.log` to monitor
+     136  
+     137  ### Video Extraction Details
+     138  - Uses ffmpeg with re-encoding (`libx264`) for precise cuts (avoids 
+         keyframe alignment issues)
+     139  - Segments are typically 60 seconds but can vary based on actual rec
+         ording duration
+     140  - Extracted videos are precisely trimmed to requested duration
+     141  - Multiple segments are concatenated before trimming when needed
+     142  
+     143  ### Current Status
+     144  The MCP server is fully functional with:
+     145  - Desktop capture using aperture-node
+     146  - Circular buffer system with 30-minute rolling storage
+     147  - Precise video extraction (10s, 30s, etc.)
+     148  - Proper error handling and logging
+     149 \ No newline at end of file
+
+Tip: Use # to memorize shortcut to quickly add to CLAUDE.md
+
+⏺ Now build the cleaned up version:
+
+⏺ Bash(cd /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr && npm run build)…
+  ⎿
+     > mcp-desktop-dvr@1.0.0 build
+     > tsc
+
+⏺ Clean up debug files:
+
+⏺ Bash(rm -f ~/.mcp-desktop-dvr/tool-calls.log …
+      ~/.mcp-desktop-dvr/connection-test.txt
+      ~/.mcp-desktop-dvr/extraction-debug.txt)
+  ⎿  (No content)
+
+⏺ Update Todos
+  ⎿  ☒ Remove unnecessary debug logging and test tools
+     ☒ Keep essential logging for production use
+     ☒ Add development notes to CLAUDE.md
+
+⏺ Cleanup Complete
+
+  Removed:
+  - Verbose debug logging
+  - Test connection tool
+  - Temporary debug file writes
+  - Excessive console output
+
+  Kept:
+  - Essential startup/shutdown logging
+  - Error logging for troubleshooting
+  - Tool call logging (minimal)
+  - Buffer operation logging (essential only)
+
+  Added to CLAUDE.md:
+  - Development workflow emphasizing the need to restart Claude Desktop
+  - Debugging information
+  - Video extraction technical details
+  - Current project status
+
+  The MCP server is now production-ready with clean, maintainable code and
+  essential logging for troubleshooting.
+
+> Commit and push
+
+⏺ Bash(cd /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr && git status)…
+  ⎿  On branch main
+     Your branch is up to date with 'origin/main'.
+     … +9 lines (ctrl+r to expand)
+     no changes added to commit (use "git add" and/or "git commit -a")
+
+⏺ Bash(cd /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr && git diff)…
+  ⎿  diff --git a/CLAUDE.md b/CLAUDE.md
+     index 6a663b1..114d2f9 100644
+     … +806 lines (ctrl+r to expand)
+     main().catch((error) => {
+
+⏺ Bash(cd /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr && git log --oneline -5)…
+  ⎿ f1fdd11 Add LAST_CLAUDE_CODE_CHAT.md
+    03956e9 Add comprehensive test suite for CircularBuffer
+    05a6a78 Add LAST_CLAUDE_CODE_CHAT.md
+    07664ca Implement circular buffer system for 30-minute rolling desktop
+    capture
+    be46a41 Add LAST_CLAUDE_CODE_CHAT.md
+
+⏺ Bash(cd /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr && git add CLAUDE.md …
+      LAST_CLAUDE_CODE_CHAT.md src/buffer/circularBuffer.ts
+      src/capture/desktopCapture.ts src/inde
+      … (ctrl+r to expand))
+  ⎿  (No content)
+
+⏺ Bash(cd /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr && git commit -m    …
+      "Complete video extraction system with precise duration control and
+      production cleanup
+      … (ctrl+r to expand))
+  ⎿  No (tell Claude what to do differently)
+
+⏺ Bash(cd /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr && git status)…
+  ⎿  Interrupted by user
+
+> You don't need to mention the production cleanup since the debug stuff wasn't
+   committed yet
+
+⏺ Bash(cd /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr && git add CLAUDE.md …
+      LAST_CLAUDE_CODE_CHAT.md src/buffer/circularBuffer.ts
+      src/capture/desktopCapture.ts src/inde
+      … (ctrl+r to expand))
+  ⎿  (No content)
+
+⏺ Bash(cd /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr && git commit -m …
+      "Complete video extraction system with precise duration control
+      … (ctrl+r to expand))
+  ⎿ [main b2e28c3] Complete video extraction system with precise duration
+    control
+     5 files changed, 2994 insertions(+), 401 deletions(-)
+
+⏺ Bash(cd /Users/randroid/Dev/AI/MCPs/mcp-desktop-dvr && git push)…
+  ⎿  To https://github.com/Randroids-Dojo/mcp-desktop-dvr.git
+        f1fdd11..b2e28c3  main -> main
+
+⏺ ✅ Committed and pushed successfully!
+
+  The changes have been committed with a focused message highlighting the key
+  improvements:
+  - Complete video extraction system with precise duration control
+  - Fixed technical issues with aperture imports and duration tracking
+  - Added essential logging and development notes
+
+  The commit hash is b2e28c3 and has been pushed to the remote repository.
 
 ╭──────────────────────────────────────────────────────────────────────────────────╮
 │ >                                                                                │
 ╰──────────────────────────────────────────────────────────────────────────────────╯
-  ⏵⏵ auto-accept edits on (shift+tab to           ✓ Update installed · Restart to 
-  toggle)                                         apply
+  ⏵⏵ auto-accept edits on (shift+tab to          Context left until auto-compact: 
+  toggle)                                        34%
+
+
 
 
