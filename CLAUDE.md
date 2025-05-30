@@ -119,3 +119,29 @@ Add to Claude Desktop configuration:
   }
 }
 ```
+
+## Development Notes
+
+### Essential Development Workflow
+1. Make code changes
+2. `npm run build` 
+3. **Restart Claude Desktop** (crucial - it caches the built code)
+4. Test the changes
+
+### Debugging
+- Debug logs are written to `~/.mcp-desktop-dvr/debug.log`
+- Essential logging is kept for production use
+- Use `tail -f ~/.mcp-desktop-dvr/debug.log` to monitor
+
+### Video Extraction Details
+- Uses ffmpeg with re-encoding (`libx264`) for precise cuts (avoids keyframe alignment issues)
+- Segments are typically 60 seconds but can vary based on actual recording duration
+- Extracted videos are precisely trimmed to requested duration
+- Multiple segments are concatenated before trimming when needed
+
+### Current Status
+The MCP server is fully functional with:
+- Desktop capture using aperture-node
+- Circular buffer system with 30-minute rolling storage
+- Precise video extraction (10s, 30s, etc.)
+- Proper error handling and logging

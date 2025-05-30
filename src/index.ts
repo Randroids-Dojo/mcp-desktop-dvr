@@ -2,6 +2,29 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { DesktopCapture } from './capture/desktopCapture.js';
+import { writeFileSync, appendFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
+
+const logDir = join(homedir(), '.mcp-desktop-dvr');
+const logPath = join(logDir, 'debug.log');
+
+// Ensure log directory exists
+try {
+  mkdirSync(logDir, { recursive: true });
+} catch (e) {
+  // Ignore if already exists
+}
+
+function log(message: string) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `${timestamp} ${message}\n`;
+  try {
+    appendFileSync(logPath, logMessage);
+  } catch (e) {
+    // Ignore errors
+  }
+}
 
 const desktopCapture = new DesktopCapture();
 
@@ -16,6 +39,8 @@ const server = new Server(
     },
   }
 );
+
+// Add request logging by wrapping handlers
 
 // Tool: analyze-desktop-now
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -88,6 +113,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
   const toolArgs = args as Record<string, any>;
+  
+  log(`[MCP] Tool called: ${name}`);
 
   switch (name) {
     case 'analyze-desktop-now':
@@ -232,9 +259,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 async function main() {
+  log('[MCP] Starting Desktop DVR MCP server');
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('Desktop DVR MCP server running on stdio');
+  log('[MCP] Server connected and ready');
 }
 
 main().catch((error) => {

@@ -30,6 +30,8 @@ export class DesktopCapture extends EventEmitter {
   private segmentInterval?: ReturnType<typeof setInterval>;
   private currentSegmentPath?: string;
   private segmentCounter = 0;
+  private currentSegmentStartTime?: Date;
+  // Remove recorder property - use imported recorder directly
 
   constructor() {
     super();
@@ -85,6 +87,7 @@ export class DesktopCapture extends EventEmitter {
   private async startSegmentRecording(options: CaptureOptions): Promise<void> {
     this.segmentCounter++;
     this.currentSegmentPath = join(this.outputDir, `segment_${Date.now()}_${this.segmentCounter}.mp4`);
+    this.currentSegmentStartTime = new Date();
 
     const recordingOptions = {
       fps: options.fps,
@@ -96,9 +99,7 @@ export class DesktopCapture extends EventEmitter {
 
     await recorder.startRecording(recordingOptions);
     
-    if (recorder.isFileReady) {
-      this.outputPath = await recorder.isFileReady;
-    }
+    this.outputPath = this.currentSegmentPath;
   }
 
   private async rotateSegment(): Promise<void> {
@@ -108,8 +109,13 @@ export class DesktopCapture extends EventEmitter {
       // Stop current recording
       const segmentPath = await recorder.stopRecording();
       
+      // Calculate segment duration
+      const duration = this.currentSegmentStartTime 
+        ? Math.floor((Date.now() - this.currentSegmentStartTime.getTime()) / 1000)
+        : 60;
+      
       // Add completed segment to circular buffer
-      await this.circularBuffer.addVideoChunk(segmentPath);
+      await this.circularBuffer.addVideoChunk(segmentPath, duration);
 
       // Start new segment recording
       await this.startSegmentRecording(this.captureOptions || {});
@@ -134,8 +140,13 @@ export class DesktopCapture extends EventEmitter {
       // Stop current recording
       const outputPath = await recorder.stopRecording();
       
+      // Calculate segment duration
+      const duration = this.currentSegmentStartTime 
+        ? Math.floor((Date.now() - this.currentSegmentStartTime.getTime()) / 1000)
+        : 60;
+      
       // Add final segment to buffer
-      await this.circularBuffer.addVideoChunk(outputPath);
+      await this.circularBuffer.addVideoChunk(outputPath, duration);
       
       this.isRecording = false;
 
@@ -158,7 +169,10 @@ export class DesktopCapture extends EventEmitter {
     try {
       // Stop current segment and add to buffer
       const currentSegmentPath = await recorder.stopRecording();
-      await this.circularBuffer.addVideoChunk(currentSegmentPath);
+      const duration = this.currentSegmentStartTime 
+        ? Math.floor((Date.now() - this.currentSegmentStartTime.getTime()) / 1000)
+        : 60;
+      await this.circularBuffer.addVideoChunk(currentSegmentPath, duration);
 
       // Extract requested duration from buffer
       const extractedPath = await this.circularBuffer.extractLastNSeconds(seconds);
