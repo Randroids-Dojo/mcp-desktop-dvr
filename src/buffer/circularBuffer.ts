@@ -169,7 +169,9 @@ export class CircularBuffer {
       // Clean up on error
       try {
         await fs.unlink(concatFilePath);
-      } catch {}
+      } catch {
+        // Ignore cleanup errors
+      }
       throw new Error(`Failed to extract video: ${error}`);
     }
   }

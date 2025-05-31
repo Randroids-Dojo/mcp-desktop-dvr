@@ -144,4 +144,40 @@ The MCP server is fully functional with:
 - Desktop capture using aperture-node
 - Circular buffer system with 30-minute rolling storage
 - Precise video extraction (10s, 30s, etc.)
+- **Visual analysis capabilities:**
+  - Frame extraction from video recordings
+  - OCR text extraction using Tesseract.js
+  - UI element detection (windows, buttons, text fields)
+  - Mouse activity tracking and click detection
+  - Scene description and summarization
+  - Color analysis and theme detection
 - Proper error handling and logging
+
+### Visual Analysis Details
+The `analyze-desktop-now` tool now uses a **focused analyzer** that prioritizes actionable information:
+
+**What it focuses on:**
+- **Error Messages**: Detects error text, exceptions, and failures on screen
+- **Warning Messages**: Identifies warnings and deprecated notices  
+- **Application Context**: Determines which app is being used (Godot, VS Code, etc.)
+- **Current File**: Extracts the name of the file being edited
+- **Click Context**: Analyzes text near where clicks occurred
+- **Code Snippets**: Identifies function definitions and important code
+
+**What it ignores:**
+- Generic UI descriptions
+- Detailed layout information
+- Redundant visual details
+
+**Output includes:**
+- Clear list of errors and warnings found
+- Application name and current file
+- Text that was clicked on
+- User actions detected
+
+Dependencies for visual analysis:
+- `sharp`: High-performance image processing
+- `tesseract.js`: OCR for text extraction with dark theme preprocessing
+- `ffmpeg`: Frame extraction from video files
+
+Debug frames are saved to `~/.mcp-desktop-dvr/debug-frames/` for verification.

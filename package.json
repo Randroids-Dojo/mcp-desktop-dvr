@@ -25,7 +25,10 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "@types/node": "^22.15.21",
+    "@types/sharp": "^0.31.1",
     "aperture": "^7.0.0",
+    "sharp": "^0.34.2",
+    "tesseract.js": "^6.0.1",
     "typescript": "^5.8.3"
   },
   "devDependencies": {

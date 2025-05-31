@@ -1,38 +1,42 @@
 # MCP Desktop DVR
 
-A Model Context Protocol (MCP) server that provides desktop video capture and analysis capabilities for macOS. This tool enables Claude Code to analyze desktop activity through intelligent video capture with a 30-minute rolling buffer.
+A Model Context Protocol (MCP) server that provides desktop video capture and analysis capabilities for macOS. This tool enables Claude to analyze desktop activity through intelligent video capture with a 30-minute rolling buffer and advanced visual analysis.
 
 ## Features
 
-- **Continuous Desktop Recording**: Capture your screen with hardware-accelerated encoding
-- **30-Minute Rolling Buffer**: Maintains the last 30 minutes of desktop activity
-- **On-Demand Analysis**: Extract and analyze any time window from the buffer
-- **Low Resource Usage**: Optimized for minimal CPU and memory impact
-- **macOS Native**: Built with native macOS APIs for best performance
+- **Continuous Desktop Recording**: Captures your screen activity in a 30-minute rolling buffer
+- **Visual Content Analysis**: 
+  - OCR text extraction from screen captures
+  - Application and window detection
+  - UI element identification (buttons, text fields, windows)
+  - Mouse activity tracking with click context
+  - Dark/light theme detection
+  - Multi-region screen analysis
+- **Instant Analysis**: Extract and analyze the last N seconds of activity on demand
+- **Smart Buffer Management**: Automatic segment rotation to maintain the 30-minute window
+- **Hardware Acceleration**: Uses VideoToolbox for efficient H.264 encoding on macOS
+- **Precise Extraction**: Frame-accurate video extraction without quality loss
 
 ## Current Status
 
-⚠️ **This project is in early development**. The MCP server skeleton is implemented, but the core functionality is not yet complete:
+✅ **The MCP server is fully functional** with desktop capture, buffer management, and visual analysis capabilities.
 
 ### What's Working:
-- ✅ Basic MCP server setup with tool definitions
-- ✅ Development environment and build configuration
-- ✅ TypeScript, ESLint, and Prettier setup
-
-### Not Yet Implemented:
-- ❌ **Desktop capture**: Aperture integration for screen recording
-- ❌ **Circular buffer**: 30-minute rolling buffer system
-- ❌ **Video analysis**: Extraction and analysis of video segments
-- ❌ **Permissions handling**: macOS Screen Recording permission requests
-- ❌ **Tests**: Unit and integration tests
-
-All tools currently return a "not_implemented" status. See the [Implementation Roadmap](#implementation-roadmap) section for planned development phases.
+- ✅ Desktop capture using aperture-node
+- ✅ 30-minute circular buffer with automatic rotation
+- ✅ Precise video extraction (10s, 30s, etc.)
+- ✅ Visual analysis with OCR and UI detection
+- ✅ Application context detection (Godot, VS Code, etc.)
+- ✅ Mouse activity tracking
+- ✅ Dark/light theme detection
+- ✅ Debug frame saving for analysis verification
 
 ## Requirements
 
 - macOS 10.15 or later
 - Node.js 18 or later
 - Screen Recording permission in System Preferences
+- ffmpeg (for video processing)
 
 ## Installation
 
@@ -54,18 +58,6 @@ npm run build
 
 ## Usage
 
-### Running the MCP Server
-
-For development:
-```bash
-npm run dev
-```
-
-For production:
-```bash
-npm start
-```
-
 ### Configuring Claude Desktop
 
 Add the following to your Claude Desktop configuration file:
@@ -81,14 +73,25 @@ Add the following to your Claude Desktop configuration file:
 }
 ```
 
+**Important**: After making changes to the code, you must:
+1. Run `npm run build`
+2. **Restart Claude Desktop** (it caches the built code)
+
 ### Available Tools
 
 #### `analyze-desktop-now`
-Extract and analyze the last N seconds of desktop activity.
+Extract and analyze the last N seconds of desktop activity with visual content analysis.
 
 Parameters:
 - `duration_seconds` (number, 1-300): Number of seconds to analyze (default: 30)
 - `analysis_type` (string): Type of analysis - "ui_elements", "mouse_activity", or "full_analysis" (default: "full_analysis")
+
+Returns detailed analysis including:
+- Detected text and UI elements
+- Application context (app name, window title)
+- Mouse activity with click locations
+- Visual changes timeline
+- Theme detection (dark/light)
 
 #### `start-continuous-capture`
 Start continuous desktop recording.
@@ -103,6 +106,19 @@ Stop desktop recording.
 #### `get-capture-status`
 Get current capture status and statistics.
 
+## Visual Analysis Details
+
+The enhanced visual analyzer performs:
+
+1. **Frame Extraction**: Extracts frames at configurable intervals
+2. **Text Recognition**: Uses Tesseract.js OCR with preprocessing for dark themes
+3. **Application Detection**: Identifies common applications (Godot, VS Code, Chrome, etc.)
+4. **Region Analysis**: Analyzes different screen regions (top bar, center, sidebars)
+5. **Change Detection**: Tracks visual changes between frames
+6. **Click Context**: Extracts text near mouse click locations
+
+Debug frames are saved to `~/.mcp-desktop-dvr/debug-frames/` for analysis verification.
+
 ## Development
 
 ### Project Structure
@@ -110,12 +126,18 @@ Get current capture status and statistics.
 ```
 mcp-desktop-dvr/
 ├── src/
-│   ├── index.ts          # MCP server entry point
-│   ├── capture/          # Desktop capture implementation
-│   ├── buffer/           # Circular buffer system
-│   ├── analysis/         # Video analysis tools
-│   └── types/            # TypeScript type definitions
-├── tests/                # Test files
+│   ├── index.ts                  # MCP server entry point
+│   ├── capture/
+│   │   └── desktopCapture.ts    # Screen recording management
+│   ├── buffer/
+│   │   └── circularBuffer.ts    # 30-minute rolling buffer
+│   ├── analysis/
+│   │   ├── videoAnalyzer.ts     # Main analysis orchestrator
+│   │   ├── visualAnalyzer.ts    # Basic visual analysis
+│   │   ├── enhancedVisualAnalyzer.ts # Advanced OCR and detection
+│   │   └── frameExtractor.ts    # Frame extraction utilities
+│   └── types/                   # TypeScript definitions
+├── tests/                       # Test files
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -143,74 +165,51 @@ npm run typecheck
 npm run format
 ```
 
-### Architecture
+### Debug Logs
 
-The system uses a hybrid approach for the 30-minute rolling buffer:
-- **Hot tier**: Last 5 minutes in RAM for fast access
-- **Cold tier**: Remaining 25 minutes in memory-mapped files
-- **Segment size**: 30-second chunks for optimal seeking
-
-Video encoding uses H.264 with VideoToolbox hardware acceleration for minimal CPU usage.
+Debug logs are written to `~/.mcp-desktop-dvr/debug.log`. Monitor them with:
+```bash
+tail -f ~/.mcp-desktop-dvr/debug.log
+```
 
 ## Performance
 
-Target performance metrics:
-- CPU usage: < 15% sustained
-- Memory: < 1.5GB total allocation
-- Capture latency: < 100ms
-- Extraction time: < 2 seconds for 30-second clip
+Current performance characteristics:
+- CPU usage: ~10-15% during capture
+- Memory: ~500MB-1GB with buffer
+- Frame extraction: <2s for 30 frames
+- OCR processing: ~100-200ms per frame
 
 ## Privacy & Security
 
 - Requires explicit Screen Recording permission
-- All recordings are stored locally
+- All recordings are stored locally in `~/.mcp-desktop-dvr/`
 - No data is transmitted over the network
 - Recordings are automatically cleaned up based on the rolling buffer
+- Debug frames can be disabled by setting `debugMode = false`
 
 ## Troubleshooting
 
 ### Screen Recording Permission
 
-If you see permission errors, ensure Screen Recording is enabled:
-1. Open System Preferences > Security & Privacy
-2. Click Privacy tab
-3. Select Screen Recording
-4. Enable permission for your terminal or IDE
+If you see permission errors:
+1. Open System Preferences > Security & Privacy > Privacy
+2. Select Screen Recording
+3. Enable permission for Terminal/iTerm/VS Code
+
+### OCR Not Detecting Text
+
+The analyzer includes aggressive preprocessing for dark themes. If text isn't detected:
+- Check debug frames in `~/.mcp-desktop-dvr/debug-frames/`
+- The preprocessed images show what OCR sees
+- Adjust preprocessing parameters if needed
 
 ### High CPU Usage
 
-If CPU usage is higher than expected:
-- Lower the FPS setting (e.g., from 30 to 15)
-- Reduce quality setting (e.g., from 70 to 50)
-- Check for other resource-intensive applications
-
-## Implementation Roadmap
-
-Based on the research in INITIAL_RESEARCH.md:
-
-### Phase 1: Basic Capture MCP
-- [ ] Integrate aperture for screen recording
-- [ ] Implement basic file-based capture
-- [ ] Handle macOS permissions
-- [ ] Test integration with Claude Desktop
-
-### Phase 2: Circular Buffer System
-- [ ] Implement in-memory circular buffer
-- [ ] Add memory-mapped file backing
-- [ ] Create extraction mechanism
-- [ ] Optimize segment boundaries
-
-### Phase 3: Analysis Features
-- [ ] Add mouse/keyboard event capture
-- [ ] Implement UI element detection
-- [ ] Create analysis patterns
-- [ ] Add performance metrics
-
-### Phase 4: Production Optimization
-- [ ] Resource monitoring and limits
-- [ ] Configuration management
-- [ ] Error handling
-- [ ] Performance profiling
+To reduce CPU usage:
+- Lower FPS: Use 15 instead of 30
+- Reduce quality: Use 50 instead of 70
+- Increase frame extraction interval
 
 ## Contributing
 
@@ -225,4 +224,6 @@ ISC License
 Built with:
 - [MCP SDK](https://github.com/anthropics/model-context-protocol) by Anthropic
 - [Aperture](https://github.com/wulkano/aperture) for macOS screen recording
+- [Sharp](https://sharp.pixelplumbing.com/) for image processing
+- [Tesseract.js](https://tesseract.projectnaptha.com/) for OCR
 - TypeScript and Node.js

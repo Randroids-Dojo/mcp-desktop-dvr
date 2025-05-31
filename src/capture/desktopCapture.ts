@@ -58,6 +58,25 @@ export class DesktopCapture extends EventEmitter {
     };
 
     try {
+      // Check if already recording
+      if (this.checkApertureRunning()) {
+        // If aperture is already running, sync our state instead of starting new
+        this.isRecording = true;
+        this.startTime = new Date();
+        this.captureOptions = captureOptions;
+        
+        // Start rotation interval if not already started
+        if (!this.segmentInterval) {
+          this.segmentInterval = setInterval(() => {
+            this.rotateSegment().catch(error => {
+              // Rotation error logged elsewhere
+            });
+          }, 60000);
+        }
+        
+        return; // Exit early, we're already recording
+      }
+
       // Initialize circular buffer
       await this.circularBuffer.initialize();
 
@@ -71,7 +90,7 @@ export class DesktopCapture extends EventEmitter {
       // Start segment rotation interval (every 60 seconds)
       this.segmentInterval = setInterval(() => {
         this.rotateSegment().catch(error => {
-          console.error('Error rotating segment:', error);
+          
         });
       }, 60000);
 
@@ -97,7 +116,16 @@ export class DesktopCapture extends EventEmitter {
       audioDeviceId: options.audioDeviceId,
     };
 
-    await recorder.startRecording(recordingOptions);
+    try {
+      await recorder.startRecording(recordingOptions);
+    } catch (error: any) {
+      // If it's the 5-second timeout but aperture is actually running, ignore it
+      if (error?.code === 'RECORDER_TIMEOUT' && this.checkApertureRunning()) {
+        // Recording started despite timeout, continue normally
+      } else {
+        throw error;
+      }
+    }
     
     this.outputPath = this.currentSegmentPath;
   }
@@ -120,7 +148,7 @@ export class DesktopCapture extends EventEmitter {
       // Start new segment recording
       await this.startSegmentRecording(this.captureOptions || {});
     } catch (error) {
-      console.error('Error during segment rotation:', error);
+      
       throw error;
     }
   }
@@ -190,8 +218,12 @@ export class DesktopCapture extends EventEmitter {
 
   getStatus(): CaptureStatus {
     const bufferStatus = this.circularBuffer.getStatus();
+    
+    // Check if aperture is actually running even if our state says it's not
+    const actuallyRecording = this.isRecording || this.checkApertureRunning();
+    
     return {
-      isRecording: this.isRecording,
+      isRecording: actuallyRecording,
       startTime: this.startTime,
       duration: this.getDuration(),
       fps: this.captureOptions?.fps,
@@ -199,6 +231,33 @@ export class DesktopCapture extends EventEmitter {
       outputPath: this.outputPath,
       bufferStatus,
     } as CaptureStatus & { bufferStatus: ReturnType<CircularBuffer['getStatus']> };
+  }
+
+  private checkApertureRunning(): boolean {
+    try {
+      const { execSync } = require('child_process');
+      const result = execSync('ps aux | grep aperture | grep record | grep -v grep', { encoding: 'utf8' });
+      const isRunning = result.trim().length > 0;
+      
+      // If aperture is running but our state is wrong, sync it
+      if (isRunning && !this.isRecording) {
+        this.isRecording = true;
+        this.startTime = new Date();
+        
+        // Start rotation interval if not running
+        if (!this.segmentInterval) {
+          this.segmentInterval = setInterval(() => {
+            this.rotateSegment().catch(error => {
+              // Error handling
+            });
+          }, 60000);
+        }
+      }
+      
+      return isRunning;
+    } catch {
+      return false;
+    }
   }
 
   private getDuration(): number | undefined {

@@ -2,6 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { DesktopCapture } from './capture/desktopCapture.js';
+import { VideoAnalyzer } from './analysis/index.js';
 import { writeFileSync, appendFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
@@ -16,7 +17,7 @@ try {
   // Ignore if already exists
 }
 
-function log(message: string) {
+export function log(message: string) {
   const timestamp = new Date().toISOString();
   const logMessage = `${timestamp} ${message}\n`;
   try {
@@ -141,17 +142,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Extract the requested video segment
         const videoPath = await desktopCapture.extractLastNSeconds(duration);
         
+        // Perform video analysis
+        const analyzer = new VideoAnalyzer();
+        const analysisResult = await analyzer.analyze(videoPath, {
+          duration,
+          analysisType
+        });
+        
         return {
           content: [
             {
               type: 'text',
               text: JSON.stringify({
                 status: 'success',
-                message: `Extracted ${duration} seconds of desktop video`,
-                videoPath,
-                analysisType,
+                message: `Analyzed ${duration} seconds of desktop video`,
+                videoPath: analysisResult.videoPath,
+                duration: analysisResult.duration,
+                analysisType: analysisResult.analysisType,
+                timestamp: analysisResult.timestamp,
+                results: {
+                  summary: analysisResult.results.summary,
+                  errors: analysisResult.results.errors || [],
+                  warnings: analysisResult.results.warnings || [],
+                  currentFile: analysisResult.results.currentFile,
+                  userActions: analysisResult.results.userActions || [],
+                  keyFrames: analysisResult.results.keyFrames || [],
+                  enhancedDetails: analysisResult.results.enhancedDetails ? {
+                    context: analysisResult.results.enhancedDetails.context,
+                    clickContexts: analysisResult.results.enhancedDetails.clickContexts
+                  } : undefined
+                },
                 bufferStatus: (status as any).bufferStatus,
-              }),
+              }, null, 2),
             },
           ],
         };
