@@ -150,7 +150,6 @@ export class WindowDetector {
     try {
       // This is a simplified parser - AppleScript output format can vary
       // In a production system, you'd want more robust parsing
-      const lines = output.trim().split('\n');
       const windows: WindowInfo[] = [];
       
       // For now, return a placeholder implementation

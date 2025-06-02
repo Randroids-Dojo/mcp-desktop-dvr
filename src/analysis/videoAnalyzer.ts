@@ -27,14 +27,12 @@ export class VideoAnalyzer {
   private async ensureTempDir(): Promise<void> {
     try {
       await fs.mkdir(this.tempDir, { recursive: true });
-    } catch (error) {
-      
+    } catch {
+      // Ignore directory creation errors - may already exist
     }
   }
 
   async analyze(videoPath: string, options: AnalysisOptions): Promise<AnalysisResult> {
-    const startTime = Date.now();
-    
     try {
       // Starting visual analysis - logged to debug file
       
@@ -166,7 +164,8 @@ export class VideoAnalyzer {
       // Analysis completed - logged to debug file
       return result;
     } catch (error) {
-      
+      // Video analysis failed - log error for debugging
+      console.error('Video analysis failed:', error);
       
       // Cleanup on error
       try {

@@ -1,4 +1,4 @@
-import { writeFileSync, appendFileSync, mkdirSync } from 'fs';
+import { appendFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
@@ -8,7 +8,7 @@ const logPath = join(logDir, 'debug.log');
 // Ensure log directory exists
 try {
   mkdirSync(logDir, { recursive: true });
-} catch (e) {
+} catch {
   // Ignore if already exists
 }
 
@@ -17,7 +17,7 @@ export function log(message: string) {
   const logMessage = `${timestamp} ${message}\n`;
   try {
     appendFileSync(logPath, logMessage);
-  } catch (e) {
+  } catch {
     // Ignore errors
   }
 }

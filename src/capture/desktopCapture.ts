@@ -6,6 +6,8 @@ import { homedir } from 'os';
 import { CircularBuffer } from '../buffer/circularBuffer.js';
 import { OptimizedCircularBuffer } from '../buffer/optimizedCircularBuffer.js';
 import { WindowDetector, type WindowInfo, type CropArea } from './windowDetector.js';
+import { log } from '../utils/logger.js';
+import { execSync } from 'child_process';
 
 export interface CaptureOptions {
   fps?: number;
@@ -86,7 +88,7 @@ export class DesktopCapture extends EventEmitter {
         // Start rotation interval if not already started
         if (!this.segmentInterval) {
           this.segmentInterval = setInterval(() => {
-            this.rotateSegment().catch(error => {
+            this.rotateSegment().catch(() => {
               // Rotation error logged elsewhere
             });
           }, 60000);
@@ -107,8 +109,8 @@ export class DesktopCapture extends EventEmitter {
 
       // Start segment rotation interval (every 60 seconds)
       this.segmentInterval = setInterval(() => {
-        this.rotateSegment().catch(error => {
-          
+        this.rotateSegment().catch(() => {
+          // Rotation error logged elsewhere
         });
       }, 60000);
 
@@ -141,7 +143,7 @@ export class DesktopCapture extends EventEmitter {
       }
     }
 
-    const recordingOptions: any = {
+    const recordingOptions: Record<string, unknown> = {
       fps: options.fps,
       videoCodec: 'h264' as const,
       highlightClicks: true,
@@ -156,9 +158,16 @@ export class DesktopCapture extends EventEmitter {
 
     try {
       await recorder.startRecording(recordingOptions);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorObj = error as { message?: string; code?: string };
+      // Check for macOS permission error
+      if (errorObj?.message?.includes('AVFoundationErrorDomain') && errorObj?.message?.includes('-11805')) {
+        throw new Error('Screen Recording permission required. Please enable in System Preferences > Privacy & Security > Screen Recording');
+      }
+      
       // If it's the 5-second timeout but aperture is actually running, ignore it
-      if (error?.code === 'RECORDER_TIMEOUT' && this.checkApertureRunning()) {
+      if (errorObj?.code === 'RECORDER_TIMEOUT' && this.checkApertureRunning()) {
+        log('Recording timeout occurred but aperture is running, continuing normally');
         // Recording started despite timeout, continue normally
       } else {
         throw error;
@@ -171,24 +180,19 @@ export class DesktopCapture extends EventEmitter {
   private async rotateSegment(): Promise<void> {
     if (!this.isRecording) return;
 
-    try {
-      // Stop current recording
-      const segmentPath = await recorder.stopRecording();
-      
-      // Calculate segment duration
-      const duration = this.currentSegmentStartTime 
-        ? Math.floor((Date.now() - this.currentSegmentStartTime.getTime()) / 1000)
-        : 60;
-      
-      // Add completed segment to circular buffer
-      await this.circularBuffer.addVideoChunk(segmentPath, duration);
+    // Stop current recording
+    const segmentPath = await recorder.stopRecording();
+    
+    // Calculate segment duration
+    const duration = this.currentSegmentStartTime 
+      ? Math.floor((Date.now() - this.currentSegmentStartTime.getTime()) / 1000)
+      : 60;
+    
+    // Add completed segment to circular buffer
+    await this.circularBuffer.addVideoChunk(segmentPath, duration);
 
-      // Start new segment recording
-      await this.startSegmentRecording(this.captureOptions || {});
-    } catch (error) {
-      
-      throw error;
-    }
+    // Start new segment recording
+    await this.startSegmentRecording(this.captureOptions || {});
   }
 
   async updateCaptureSettings(options: Partial<CaptureOptions>): Promise<void> {
@@ -302,7 +306,6 @@ export class DesktopCapture extends EventEmitter {
 
   private checkApertureRunning(): boolean {
     try {
-      const { execSync } = require('child_process');
       const result = execSync('ps aux | grep aperture | grep record | grep -v grep', { encoding: 'utf8' });
       const isRunning = result.trim().length > 0;
       
@@ -314,7 +317,7 @@ export class DesktopCapture extends EventEmitter {
         // Start rotation interval if not running
         if (!this.segmentInterval) {
           this.segmentInterval = setInterval(() => {
-            this.rotateSegment().catch(error => {
+            this.rotateSegment().catch(() => {
               // Error handling
             });
           }, 60000);
@@ -343,7 +346,7 @@ export class DesktopCapture extends EventEmitter {
     const commonBundles = this.windowDetector.getCommonBundleIds();
     const availableWindows: WindowInfo[] = [];
     
-    for (const [name, bundle] of Object.entries(commonBundles)) {
+    for (const bundle of Object.values(commonBundles)) {
       const isRunning = await this.windowDetector.isApplicationRunning(bundle);
       if (isRunning) {
         const windows = await this.windowDetector.findWindowsByBundleId(bundle);

@@ -3,7 +3,6 @@ import path from 'path';
 import os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { createReadStream, createWriteStream } from 'fs';
 import { EventEmitter } from 'events';
 import { MemoryMonitor } from './memoryMonitor.js';
 import { log } from '../utils/logger.js';
@@ -322,7 +321,9 @@ export class OptimizedCircularBuffer extends EventEmitter {
     } catch (error) {
       try {
         await fs.unlink(concatFilePath);
-      } catch {}
+      } catch {
+        // Cleanup failed, ignore
+      }
       throw new Error(`Failed to extract video: ${error}`);
     }
   }

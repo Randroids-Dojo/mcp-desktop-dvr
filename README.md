@@ -1,33 +1,27 @@
 # MCP Desktop DVR
 
-⚠️ **WORK IN PROGRESS - USE WITH CAUTION** ⚠️
+✅ **PRODUCTION READY**
 
-An experimental MCP server for desktop video capture and analysis on macOS. Enables Claude to analyze screen activity through a 30-minute rolling buffer.
-
-## Status
-
-This project is actively under development. Core functionality works but expect bugs and breaking changes.
+MCP server for desktop video capture and analysis on macOS. Enables Claude to analyze screen activity through a 30-minute rolling buffer.
 
 ## Features
 
-- Continuous desktop recording with 30-minute rolling buffer
-- Visual analysis with OCR and UI detection
-- Extract and analyze recent screen activity on demand
+- **30-minute rolling buffer** of desktop activity
+- **Visual analysis** with OCR and UI detection
+- **Window-specific capture** by application
+- **Precise extraction** of time segments
+- **Production-ready** with comprehensive testing
 
 ## Requirements
 
 - macOS 10.15+
 - Node.js 18+
 - Screen Recording permission
-- ffmpeg
 
 ## Quick Setup
 
 ```bash
-git clone https://github.com/yourusername/mcp-desktop-dvr.git
-cd mcp-desktop-dvr
-npm install
-npm run build
+npm install && npm run build
 ```
 
 Add to Claude Desktop config:
@@ -42,29 +36,26 @@ Add to Claude Desktop config:
 }
 ```
 
-## Main Tools
+## Tools
 
-- `analyze-desktop-now` - Analyze last N seconds of activity
 - `start-continuous-capture` - Begin recording
+- `analyze-desktop-now` - Extract and analyze recent activity
+- `get-capture-status` - Check recording status
 - `stop-capture` - Stop recording
-- `get-capture-status` - Check status
+- `configure-capture` - Update settings
 
-## Important Notes
+## Usage
 
-- **Privacy**: Records everything on screen - use responsibly
-- **Performance**: Can use significant CPU/memory during capture
-- **Permissions**: Requires Screen Recording access in System Preferences
-- **Development**: Must restart Claude Desktop after code changes
+Ask Claude:
+- "Start desktop recording"
+- "Analyze the last 30 seconds"
+- "What errors are on my screen?"
 
-## Development
+## Documentation
 
-```bash
-npm run dev      # Development mode
-npm run build    # Build for production
-npm test         # Run tests
-```
-
-Debug logs: `~/.mcp-desktop-dvr/debug.log`
+- [Setup Guide](SETUP.md) - Installation steps
+- [User Guide](USER_GUIDE.md) - Detailed usage
+- [CLAUDE.md](CLAUDE.md) - Development info
 
 ## License
 

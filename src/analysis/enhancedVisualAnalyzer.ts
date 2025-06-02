@@ -35,8 +35,8 @@ export class EnhancedVisualAnalyzer {
     if (this.debugMode) {
       try {
         await fs.mkdir(this.debugDir, { recursive: true });
-      } catch (error) {
-        
+      } catch {
+        // Ignore directory creation errors - may already exist
       }
     }
   }
@@ -190,14 +190,13 @@ export class EnhancedVisualAnalyzer {
       }
       
       return result.data.text.trim();
-    } catch (error) {
-      
+    } catch {
+      // OCR failed - return empty string
       return '';
     }
   }
 
   private identifyApplication(text: string): string | undefined {
-    
     // Common application patterns
     const appPatterns = [
       { pattern: /godot/i, name: 'Godot Engine' },
@@ -350,8 +349,8 @@ export class EnhancedVisualAnalyzer {
       return text.split('\n')
         .map(line => line.trim())
         .filter(line => line.length > 0);
-    } catch (error) {
-      
+    } catch {
+      // Text extraction failed - return empty array
       return [];
     }
   }
@@ -428,8 +427,8 @@ export class EnhancedVisualAnalyzer {
       const debugPath = path.join(this.debugDir, `${prefix}_${Date.now()}.png`);
       await fs.copyFile(framePath, debugPath);
       // Debug frame saved
-    } catch (error) {
-      
+    } catch {
+      // Debug frame save failed - continue without saving
     }
   }
 
@@ -507,8 +506,8 @@ export class EnhancedVisualAnalyzer {
       const text = await this.extractTextFromBuffer(processed);
       
       return text || 'No text detected near click';
-    } catch (error) {
-      
+    } catch {
+      // Text extraction around click position failed
       return 'Error extracting text';
     }
   }

@@ -37,8 +37,8 @@ export class FocusedAnalyzer {
     if (this.saveDebugFrames) {
       try {
         await fs.mkdir(this.debugDir, { recursive: true });
-      } catch (error) {
-        
+      } catch {
+        // Ignore directory creation errors - may already exist
       }
     }
   }
@@ -139,8 +139,8 @@ export class FocusedAnalyzer {
       
       // Remove duplicates and empty strings
       return [...new Set(allText.filter(t => t.trim().length > 0))];
-    } catch (error) {
-      
+    } catch {
+      // Text extraction failed - return empty array
       return [];
     }
   }
@@ -181,8 +181,8 @@ export class FocusedAnalyzer {
         .split('\n')
         .map(line => line.trim())
         .filter(line => line.length > 0);
-    } catch (error) {
-      
+    } catch {
+      // OCR text extraction failed - return empty array
       return [];
     }
   }
@@ -234,8 +234,8 @@ export class FocusedAnalyzer {
         } catch {
           // Ignore
         }
-      } catch (error) {
-        
+      } catch {
+        // Region analysis failed - continue with next region
       }
     }
     
@@ -494,8 +494,8 @@ export class FocusedAnalyzer {
       }
       
       return text.join(' ').substring(0, 100);
-    } catch (error) {
-      
+    } catch {
+      // Click position text extraction failed
       return null;
     }
   }

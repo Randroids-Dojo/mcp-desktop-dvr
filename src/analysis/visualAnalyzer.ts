@@ -115,8 +115,8 @@ export class VisualAnalyzer {
         },
         confidence: word.confidence / 100
       }));
-    } catch (error) {
-      
+    } catch {
+      // OCR text extraction failed - return empty array
       return [];
     }
   }
@@ -186,8 +186,8 @@ export class VisualAnalyzer {
           });
         }
       }
-    } catch (error) {
-      
+    } catch {
+      // Window detection failed - continue without window elements
     }
 
     return elements;

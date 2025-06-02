@@ -20,8 +20,8 @@ export class FrameExtractor {
   private async ensureTempDir(): Promise<void> {
     try {
       await fs.mkdir(this.tempDir, { recursive: true });
-    } catch (error) {
-      
+    } catch {
+      // Ignore directory creation errors - may already exist
     }
   }
 
