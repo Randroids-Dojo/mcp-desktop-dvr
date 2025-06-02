@@ -8,9 +8,15 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest tests/unit",
+    "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest tests/integration",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:performance": "NODE_OPTIONS=--experimental-vm-modules jest tests/integration/performance.test.ts",
     "lint": "eslint src/**/*.ts",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write src/**/*.ts"
+    "format": "prettier --write src/**/*.ts",
+    "ci": "npm run typecheck && npm run lint && npm run test:coverage"
   },
   "keywords": [
     "mcp",

@@ -4,11 +4,17 @@ import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { CircularBuffer } from '../buffer/circularBuffer.js';
+import { OptimizedCircularBuffer } from '../buffer/optimizedCircularBuffer.js';
+import { WindowDetector, type WindowInfo, type CropArea } from './windowDetector.js';
 
 export interface CaptureOptions {
   fps?: number;
   quality?: number;
   audioDeviceId?: string;
+  useOptimizedBuffer?: boolean;
+  bundleId?: string;
+  cropArea?: CropArea;
+  windowPadding?: number;
 }
 
 export interface CaptureStatus {
@@ -18,6 +24,9 @@ export interface CaptureStatus {
   fps?: number;
   quality?: number;
   outputPath?: string;
+  bundleId?: string;
+  cropArea?: CropArea;
+  targetWindow?: WindowInfo;
 }
 
 export class DesktopCapture extends EventEmitter {
@@ -26,18 +35,27 @@ export class DesktopCapture extends EventEmitter {
   private captureOptions?: CaptureOptions;
   private outputPath?: string;
   private outputDir: string;
-  private circularBuffer: CircularBuffer;
+  private circularBuffer: CircularBuffer | OptimizedCircularBuffer;
   private segmentInterval?: ReturnType<typeof setInterval>;
   private currentSegmentPath?: string;
   private segmentCounter = 0;
   private currentSegmentStartTime?: Date;
+  private useOptimizedBuffer: boolean = false;
+  private windowDetector: WindowDetector;
+  private targetWindow?: WindowInfo;
   // Remove recorder property - use imported recorder directly
 
-  constructor() {
+  constructor(useOptimizedBuffer: boolean = true) {
     super();
     this.outputDir = join(homedir(), '.mcp-desktop-dvr', 'recordings');
     this.ensureOutputDirectory();
-    this.circularBuffer = new CircularBuffer(join(homedir(), '.mcp-desktop-dvr', 'buffer'));
+    this.useOptimizedBuffer = useOptimizedBuffer;
+    this.windowDetector = new WindowDetector();
+    
+    const bufferPath = join(homedir(), '.mcp-desktop-dvr', 'buffer');
+    this.circularBuffer = useOptimizedBuffer 
+      ? new OptimizedCircularBuffer(bufferPath)
+      : new CircularBuffer(bufferPath);
   }
 
   private ensureOutputDirectory(): void {
@@ -108,13 +126,33 @@ export class DesktopCapture extends EventEmitter {
     this.currentSegmentPath = join(this.outputDir, `segment_${Date.now()}_${this.segmentCounter}.mp4`);
     this.currentSegmentStartTime = new Date();
 
-    const recordingOptions = {
+    // Handle window-specific capture
+    let cropArea: CropArea | undefined = options.cropArea;
+    
+    if (options.bundleId && !cropArea) {
+      // Find the target window
+      const targetWindow = await this.windowDetector.findMainWindowByBundleId(options.bundleId);
+      if (targetWindow) {
+        this.targetWindow = targetWindow;
+        cropArea = this.windowDetector.windowToCropArea(targetWindow, options.windowPadding || 10);
+        console.error(`[DesktopCapture] Found target window for ${options.bundleId}: ${targetWindow.title} (${cropArea.width}x${cropArea.height})`);
+      } else {
+        console.error(`[DesktopCapture] Warning: Could not find window for bundle ID ${options.bundleId}, falling back to full screen`);
+      }
+    }
+
+    const recordingOptions: any = {
       fps: options.fps,
       videoCodec: 'h264' as const,
       highlightClicks: true,
       showCursor: true,
       audioDeviceId: options.audioDeviceId,
     };
+
+    // Add crop area if specified
+    if (cropArea) {
+      recordingOptions.cropArea = cropArea;
+    }
 
     try {
       await recorder.startRecording(recordingOptions);
@@ -151,6 +189,28 @@ export class DesktopCapture extends EventEmitter {
       
       throw error;
     }
+  }
+
+  async updateCaptureSettings(options: Partial<CaptureOptions>): Promise<void> {
+    if (!this.isRecording) {
+      throw new Error('No capture in progress to update');
+    }
+
+    // Update the capture options
+    const previousOptions = { ...this.captureOptions };
+    this.captureOptions = {
+      ...this.captureOptions,
+      ...options,
+    };
+
+    // Emit event for settings update
+    this.emit('captureSettingsUpdated', {
+      previousOptions,
+      newOptions: this.captureOptions,
+    });
+
+    // Note: Aperture doesn't support changing settings mid-recording,
+    // so these settings will apply to the next segment
   }
 
   async stopCapture(): Promise<string> {
@@ -229,8 +289,15 @@ export class DesktopCapture extends EventEmitter {
       fps: this.captureOptions?.fps,
       quality: this.captureOptions?.quality,
       outputPath: this.outputPath,
+      bundleId: this.captureOptions?.bundleId,
+      cropArea: this.captureOptions?.cropArea,
+      targetWindow: this.targetWindow,
       bufferStatus,
-    } as CaptureStatus & { bufferStatus: ReturnType<CircularBuffer['getStatus']> };
+      memoryOptimized: this.useOptimizedBuffer,
+    } as CaptureStatus & { 
+      bufferStatus: ReturnType<CircularBuffer['getStatus']> | ReturnType<OptimizedCircularBuffer['getStatus']>;
+      memoryOptimized: boolean;
+    };
   }
 
   private checkApertureRunning(): boolean {
@@ -265,5 +332,43 @@ export class DesktopCapture extends EventEmitter {
       return undefined;
     }
     return Math.floor((Date.now() - this.startTime.getTime()) / 1000);
+  }
+  
+  async getAvailableWindows(bundleId?: string): Promise<WindowInfo[]> {
+    if (bundleId) {
+      return await this.windowDetector.findWindowsByBundleId(bundleId);
+    }
+    
+    // Return common bundle IDs and their status
+    const commonBundles = this.windowDetector.getCommonBundleIds();
+    const availableWindows: WindowInfo[] = [];
+    
+    for (const [name, bundle] of Object.entries(commonBundles)) {
+      const isRunning = await this.windowDetector.isApplicationRunning(bundle);
+      if (isRunning) {
+        const windows = await this.windowDetector.findWindowsByBundleId(bundle);
+        availableWindows.push(...windows);
+      }
+    }
+    
+    return availableWindows;
+  }
+  
+  getCommonBundleIds(): Record<string, string> {
+    return this.windowDetector.getCommonBundleIds();
+  }
+  
+  async isApplicationRunning(bundleId: string): Promise<boolean> {
+    return await this.windowDetector.isApplicationRunning(bundleId);
+  }
+
+  async shutdown(): Promise<void> {
+    if (this.isRecording) {
+      await this.stopCapture();
+    }
+    
+    if (this.circularBuffer instanceof OptimizedCircularBuffer) {
+      await this.circularBuffer.shutdown();
+    }
   }
 }

@@ -4,11 +4,33 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
 
+// Mock child_process to avoid FFmpeg dependency in tests
+jest.mock('child_process', () => ({
+  exec: jest.fn(),
+}));
+
+import { exec } from 'child_process';
+const mockedExec = exec as jest.MockedFunction<typeof exec>;
+
 describe('CircularBuffer', () => {
   let buffer: CircularBuffer;
   const testBufferDir = path.join(os.tmpdir(), 'test-desktop-dvr-buffer');
 
   beforeEach(async () => {
+    // Mock exec to simulate successful FFmpeg operations
+    mockedExec.mockImplementation((command: string, callback: Function) => {
+      // Create a simple output file for FFmpeg operations
+      const outputMatch = command.match(/"([^"]*\.mp4)"/g);
+      if (outputMatch) {
+        const outputFile = outputMatch[outputMatch.length - 1].replace(/"/g, '');
+        fs.writeFile(outputFile, 'test video content').then(() => {
+          callback(null, { stdout: '', stderr: '' });
+        }).catch(callback);
+      } else {
+        callback(null, { stdout: '', stderr: '' });
+      }
+    });
+
     buffer = new CircularBuffer(testBufferDir);
     await buffer.initialize();
   });
@@ -20,6 +42,7 @@ describe('CircularBuffer', () => {
     } catch (error) {
       // Ignore cleanup errors
     }
+    jest.clearAllMocks();
   });
 
   describe('initialization', () => {
@@ -144,11 +167,10 @@ describe('CircularBuffer', () => {
       expect(typeof bufferPrivate.pruneOldSegments).toBe('function');
     });
 
-    it('should handle segment rotation based on duration', async () => {
-      // This test would require mocking time intervals
-      const bufferPrivate = buffer as any;
-      expect(typeof bufferPrivate.shouldStartNewSegment).toBe('function');
-      expect(typeof bufferPrivate.startNewSegment).toBe('function');
+    it('should handle cleanup properly', async () => {
+      // Test cleanup method exists
+      expect(typeof buffer.cleanup).toBe('function');
+      await expect(buffer.cleanup()).resolves.not.toThrow();
     });
   });
 });
