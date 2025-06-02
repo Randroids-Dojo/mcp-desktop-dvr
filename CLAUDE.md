@@ -162,9 +162,9 @@ The MCP server is fully functional with:
 - Proper error handling and logging
 
 ### Visual Analysis Details
-The `analyze-desktop-now` tool now uses a **focused analyzer** that prioritizes actionable information:
+The `analyze-desktop-now` tool uses a **focused analyzer** with significant limitations:
 
-**What it focuses on:**
+**What it was designed to focus on:**
 - **Error Messages**: Detects error text, exceptions, and failures on screen
 - **Warning Messages**: Identifies warnings and deprecated notices  
 - **Application Context**: Determines which app is being used (Godot, VS Code, etc.)
@@ -172,20 +172,25 @@ The `analyze-desktop-now` tool now uses a **focused analyzer** that prioritizes 
 - **Click Context**: Analyzes text near where clicks occurred
 - **Code Snippets**: Identifies function definitions and important code
 
-**What it ignores:**
-- Generic UI descriptions
-- Detailed layout information
-- Redundant visual details
+**MAJOR LIMITATIONS:**
+- **OCR-based analysis is fundamentally inadequate** for modern GUI applications
+- **Game content produces garbage text** due to stylized fonts, graphics, and UI elements
+- **Visual interactions are poorly captured** - relies on text extraction rather than computer vision
+- **Analysis quality is inconsistent** across different applications and themes
+- **Limited usefulness for general desktop activity** beyond text-heavy development environments
 
-**Output includes:**
-- Clear list of errors and warnings found
-- Application name and current file
-- Text that was clicked on
-- User actions detected
+**Current Status:** 
+⚠️ **Analysis system needs major overhaul** - OCR approach is insufficient for comprehensive desktop analysis
 
-Dependencies for visual analysis:
+**Future Direction:**
+- Replace OCR-based analysis with direct image analysis using LLM vision capabilities
+- Implement computer vision techniques for UI element detection
+- Add support for visual pattern recognition instead of text extraction
+- Consider streaming frame images directly to LLM for contextual analysis
+
+Dependencies for current (limited) visual analysis:
 - `sharp`: High-performance image processing
-- `tesseract.js`: OCR for text extraction with dark theme preprocessing
+- `tesseract.js`: OCR for text extraction with dark theme preprocessing (produces poor results)
 - `ffmpeg`: Frame extraction from video files
 
 Debug frames are saved to `~/.mcp-desktop-dvr/debug-frames/` for verification.

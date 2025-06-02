@@ -17,6 +17,7 @@ export interface CaptureOptions {
   bundleId?: string;
   cropArea?: CropArea;
   windowPadding?: number;
+  captureAllWindows?: boolean; // New option to capture all windows for a bundle ID
 }
 
 export interface CaptureStatus {
@@ -132,14 +133,27 @@ export class DesktopCapture extends EventEmitter {
     let cropArea: CropArea | undefined = options.cropArea;
     
     if (options.bundleId && !cropArea) {
-      // Find the target window
-      const targetWindow = await this.windowDetector.findMainWindowByBundleId(options.bundleId);
-      if (targetWindow) {
-        this.targetWindow = targetWindow;
-        cropArea = this.windowDetector.windowToCropArea(targetWindow, options.windowPadding || 10);
-        console.error(`[DesktopCapture] Found target window for ${options.bundleId}: ${targetWindow.title} (${cropArea.width}x${cropArea.height})`);
+      if (options.captureAllWindows) {
+        // Find all windows and create a bounding box that encompasses them all
+        const allWindows = await this.windowDetector.findWindowsByBundleId(options.bundleId);
+        const visibleWindows = allWindows.filter(w => w.isVisible && w.width > 100 && w.height > 100);
+        
+        if (visibleWindows.length > 0) {
+          cropArea = this.windowDetector.createBoundingBoxForWindows(visibleWindows, options.windowPadding || 10);
+          console.error(`[DesktopCapture] Capturing all ${visibleWindows.length} windows for ${options.bundleId} (${cropArea.width}x${cropArea.height})`);
+        } else {
+          console.error(`[DesktopCapture] Warning: Could not find windows for bundle ID ${options.bundleId}, falling back to full screen`);
+        }
       } else {
-        console.error(`[DesktopCapture] Warning: Could not find window for bundle ID ${options.bundleId}, falling back to full screen`);
+        // Find the main/largest window (existing behavior)
+        const targetWindow = await this.windowDetector.findMainWindowByBundleId(options.bundleId);
+        if (targetWindow) {
+          this.targetWindow = targetWindow;
+          cropArea = this.windowDetector.windowToCropArea(targetWindow, options.windowPadding || 10);
+          console.error(`[DesktopCapture] Found target window for ${options.bundleId}: ${targetWindow.title} (${cropArea.width}x${cropArea.height})`);
+        } else {
+          console.error(`[DesktopCapture] Warning: Could not find window for bundle ID ${options.bundleId}, falling back to full screen`);
+        }
       }
     }
 
@@ -254,7 +268,10 @@ export class DesktopCapture extends EventEmitter {
   }
 
   async extractLastNSeconds(seconds: number): Promise<string> {
-    if (!this.isRecording) {
+    // Check if aperture is actually running even if our state says it's not
+    const actuallyRecording = this.isRecording || this.checkApertureRunning();
+    
+    if (!actuallyRecording) {
       throw new Error('No active recording to extract from');
     }
 

@@ -85,6 +85,11 @@ export class DesktopDVRServer {
                 maximum: 100,
                 default: 10,
               },
+              captureAllWindows: {
+                type: 'boolean',
+                description: 'Capture all windows for the bundle ID instead of just the main window (useful for apps like Godot with editor + game windows)',
+                default: false,
+              },
             },
           },
         },
@@ -252,6 +257,7 @@ export class DesktopDVRServer {
         quality: toolArgs?.quality || 70,
         bundleId: toolArgs?.bundleId,
         windowPadding: toolArgs?.windowPadding || 10,
+        captureAllWindows: toolArgs?.captureAllWindows || false,
       });
       const status = this.desktopCapture.getStatus();
       return {

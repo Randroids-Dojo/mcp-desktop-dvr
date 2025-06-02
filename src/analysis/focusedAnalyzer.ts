@@ -319,16 +319,86 @@ export class FocusedAnalyzer {
     ];
     
     // Check all text for app indicators
+    const detectedApps: string[] = [];
     for (const lines of allText.values()) {
       const combinedText = lines.join(' ');
       for (const { pattern, name } of appIndicators) {
         if (pattern.test(combinedText)) {
-          return name;
+          if (!detectedApps.includes(name)) {
+            detectedApps.push(name);
+          }
         }
       }
     }
     
-    return undefined;
+    // Look for specific Godot contexts
+    if (detectedApps.includes('Godot Engine')) {
+      const hasGameContent = this.detectGameContent(allText);
+      const hasEditorContent = this.detectEditorContent(allText);
+      
+      if (hasGameContent && hasEditorContent) {
+        return 'Godot Engine (Editor + Game)';
+      } else if (hasGameContent) {
+        return 'Godot Game';
+      } else if (hasEditorContent) {
+        return 'Godot Engine';
+      }
+    }
+    
+    return detectedApps.length > 0 ? detectedApps.join(', ') : undefined;
+  }
+
+  private detectGameContent(allText: Map<number, string[]>): boolean {
+    const gameIndicators = [
+      /fps.*\d+/i,
+      /score.*\d+/i,
+      /level.*\d+/i,
+      /health.*\d+/i,
+      /player/i,
+      /game.*over/i,
+      /pause/i,
+      /resume/i,
+      /start.*game/i,
+      /new.*game/i
+    ];
+    
+    for (const lines of allText.values()) {
+      const combinedText = lines.join(' ');
+      for (const pattern of gameIndicators) {
+        if (pattern.test(combinedText)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private detectEditorContent(allText: Map<number, string[]>): boolean {
+    const editorIndicators = [
+      /inspector/i,
+      /scene/i,
+      /filesystem/i,
+      /script/i,
+      /node/i,
+      /project/i,
+      /import/i,
+      /export/i,
+      /debug/i,
+      /console/i,
+      /\.gd\b/i,
+      /\.tscn\b/i,
+      /func\s+\w+/i
+    ];
+    
+    for (const lines of allText.values()) {
+      const combinedText = lines.join(' ');
+      for (const pattern of editorIndicators) {
+        if (pattern.test(combinedText)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private findCurrentFile(allText: Map<number, string[]>): string | undefined {
@@ -390,7 +460,14 @@ export class FocusedAnalyzer {
       parts.push(`Working in ${result.application}.`);
     }
     
-    // Current file
+    // Handle game-specific analysis differently
+    const isGameContent = result.application?.includes('Game') || result.application?.includes('Editor + Game');
+    
+    if (isGameContent) {
+      return this.generateGameFocusedSummary(result);
+    }
+    
+    // Current file (for editor content)
     if (result.currentFile) {
       parts.push(`Editing: ${result.currentFile}`);
     }
@@ -422,6 +499,43 @@ export class FocusedAnalyzer {
     // If nothing important found, say so
     if (result.errors.length === 0 && result.warnings.length === 0 && result.userActions.length === 0) {
       parts.push('No errors, warnings, or significant actions detected.');
+    }
+    
+    return parts.join('\n');
+  }
+
+  private generateGameFocusedSummary(result: FocusedAnalysisResult): string {
+    const parts: string[] = [];
+    
+    parts.push(`Working in ${result.application}.`);
+    
+    // For game content, focus on visual interactions rather than text
+    if (result.clickedElements.length > 0) {
+      parts.push(`\n**Game Interactions:**`);
+      result.clickedElements.forEach(element => {
+        parts.push(`- ${element}`);
+      });
+    }
+    
+    // Still report errors/warnings if found
+    if (result.errors.length > 0) {
+      parts.push(`\n**Issues:**`);
+      result.errors.forEach(error => {
+        parts.push(`- ${error}`);
+      });
+    }
+    
+    if (result.warnings.length > 0) {
+      result.warnings.forEach(warning => {
+        parts.push(`- ${warning}`);
+      });
+    }
+    
+    // Game-specific note about OCR limitations
+    if (result.clickedElements.length === 0 && result.errors.length === 0 && result.warnings.length === 0) {
+      parts.push('\n**Note:** Game content detected but specific interactions are difficult to analyze through text extraction.');
+      parts.push('Visual analysis shows game activity but may not capture detailed gameplay mechanics.');
+      parts.push('Consider using shorter analysis windows (10-15 seconds) focused on specific interactions for better results.');
     }
     
     return parts.join('\n');

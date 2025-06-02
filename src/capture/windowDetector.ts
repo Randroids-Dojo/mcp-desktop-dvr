@@ -104,6 +104,32 @@ export class WindowDetector {
   }
 
   /**
+   * Create a bounding box that encompasses all provided windows
+   */
+  createBoundingBoxForWindows(windows: WindowInfo[], padding: number = 0): CropArea {
+    if (windows.length === 0) {
+      throw new Error('Cannot create bounding box for empty window list');
+    }
+
+    // Find the bounds that encompass all windows
+    let minX = Math.min(...windows.map(w => w.x));
+    let minY = Math.min(...windows.map(w => w.y));
+    let maxX = Math.max(...windows.map(w => w.x + w.width));
+    let maxY = Math.max(...windows.map(w => w.y + w.height));
+
+    // Apply padding
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX + (padding * 2),
+      height: maxY - minY + (padding * 2),
+    };
+  }
+
+  /**
    * Get a list of common application bundle IDs
    */
   getCommonBundleIds(): Record<string, string> {
