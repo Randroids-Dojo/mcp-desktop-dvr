@@ -122,9 +122,51 @@ Add to Claude Desktop configuration:
   "mcpServers": {
     "desktop-dvr": {
       "command": "node",
-      "args": ["path/to/mcp-desktop-dvr/dist/index.js"]
+      "args": ["path/to/mcp-desktop-dvr/dist/index.js"],
+      "env": {
+        "ANALYZER_PREFERENCE": "tarsier"
+      }
     }
   }
+}
+```
+
+### Analyzer Configuration Options
+
+The MCP server supports multiple video analyzers with configurable preferences:
+
+**Environment Variables:**
+- `ANALYZER_PREFERENCE` - Controls which analyzer to use:
+  - `"auto"` (default) - Uses OpenAI if API key is set, otherwise Tarsier, then OCR
+  - `"openai"` - Forces OpenAI analyzer (requires OPENAI_API_KEY)
+  - `"tarsier"` - Forces Tarsier2-7B local AI analyzer (recommended)
+  - `"ocr"` - Forces OCR text extraction only
+
+- `OPENAI_API_KEY` - Your OpenAI API key (if using OpenAI analyzer)
+- `OPENAI_MODEL` - OpenAI model to use (default: "gpt-4o")
+
+**Example Configurations:**
+
+1. **Force Tarsier even with OpenAI key:**
+```json
+"env": {
+  "OPENAI_API_KEY": "sk-...",
+  "ANALYZER_PREFERENCE": "tarsier"
+}
+```
+
+2. **Auto mode (OpenAI → Tarsier → OCR):**
+```json
+"env": {
+  "OPENAI_API_KEY": "sk-...",
+  "ANALYZER_PREFERENCE": "auto"
+}
+```
+
+3. **Tarsier only (no fallback):**
+```json
+"env": {
+  "ANALYZER_PREFERENCE": "tarsier"
 }
 ```
 
@@ -162,35 +204,48 @@ The MCP server is fully functional with:
 - Proper error handling and logging
 
 ### Visual Analysis Details
-The `analyze-desktop-now` tool uses a **focused analyzer** with significant limitations:
+The `analyze-desktop-now` tool now supports **two analysis methods**:
 
-**What it was designed to focus on:**
-- **Error Messages**: Detects error text, exceptions, and failures on screen
-- **Warning Messages**: Identifies warnings and deprecated notices  
-- **Application Context**: Determines which app is being used (Godot, VS Code, etc.)
-- **Current File**: Extracts the name of the file being edited
-- **Click Context**: Analyzes text near where clicks occurred
-- **Code Snippets**: Identifies function definitions and important code
+#### 🤖 **Tarsier2-7B AI Vision Analysis** (Primary Method)
+- **Uses Tarsier2-Recap-7B** for advanced video understanding
+- **Direct visual analysis** of UI elements, applications, and user interactions
+- **No OCR limitations** - can analyze any visual content including games, graphics, and modern UIs
+- **Excellent for complex interfaces** like game engines, visual editors, and multimedia applications
+- **Fast processing** with M2 Metal Performance Shaders acceleration
 
-**MAJOR LIMITATIONS:**
-- **OCR-based analysis is fundamentally inadequate** for modern GUI applications
-- **Game content produces garbage text** due to stylized fonts, graphics, and UI elements
-- **Visual interactions are poorly captured** - relies on text extraction rather than computer vision
-- **Analysis quality is inconsistent** across different applications and themes
-- **Limited usefulness for general desktop activity** beyond text-heavy development environments
+**What Tarsier excels at:**
+- **Application identification**: Accurately detects software being used
+- **Error detection**: Identifies visual error dialogs and warning messages
+- **User action tracking**: Understands clicks, selections, and UI interactions
+- **File context**: Determines which files are being edited or viewed
+- **Visual UI analysis**: Describes interface elements, themes, and layouts
+- **Game content understanding**: Can analyze game screens and interactions
+
+#### 📝 **OCR Text Analysis** (Fallback Method)
+- **Automatic fallback** when Tarsier is unavailable
+- **Focused on text extraction** for development environments
+- **Good for text-heavy interfaces** like IDEs and terminals
+- **Limited effectiveness** with modern GUIs and graphical content
 
 **Current Status:** 
-⚠️ **Analysis system needs major overhaul** - OCR approach is insufficient for comprehensive desktop analysis
+✅ **Hybrid analysis system implemented** - Intelligent fallback from AI vision to OCR
 
-**Future Direction:**
-- Replace OCR-based analysis with direct image analysis using LLM vision capabilities
-- Implement computer vision techniques for UI element detection
-- Add support for visual pattern recognition instead of text extraction
-- Consider streaming frame images directly to LLM for contextual analysis
+**Technical Implementation:**
+- **Primary**: Tarsier2-Recap-7B with PyTorch MPS acceleration
+- **Fallback**: Enhanced OCR with Tesseract.js
+- **Frame extraction**: 16 evenly-spaced frames per analysis
+- **Processing time**: ~5-15 seconds for 30-second clips
+- **Device**: Apple M2 with Metal Performance Shaders
 
-Dependencies for current (limited) visual analysis:
-- `sharp`: High-performance image processing
-- `tesseract.js`: OCR for text extraction with dark theme preprocessing (produces poor results)
+**Dependencies:**
+- `torch`, `transformers`, `opencv-python`: Tarsier AI analysis
+- `sharp`: High-performance image processing  
+- `tesseract.js`: OCR fallback analysis
 - `ffmpeg`: Frame extraction from video files
 
-Debug frames are saved to `~/.mcp-desktop-dvr/debug-frames/` for verification.
+**Analysis quality indicators:**
+- **"Advanced AI vision analysis"**: Tarsier was used successfully
+- **"OCR text analysis"**: Fallback method was used
+- **"Hybrid analysis"**: Both methods provided results
+
+Debug frames are saved to `~/.mcp-desktop-dvr/tarsier-frames/` and `~/.mcp-desktop-dvr/debug-frames/`.

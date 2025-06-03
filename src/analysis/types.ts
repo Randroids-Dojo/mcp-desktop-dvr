@@ -76,6 +76,14 @@ export interface AnalysisResult {
         description: string;
         confidence: number;
       };
+      tarsierAnalysis?: {
+        provider: string;
+        description: string;
+        confidence: number;
+        processingTime: number;
+        device: string;
+        analysisMethod: 'ocr' | 'tarsier' | 'hybrid';
+      };
     };
   };
 }

@@ -7,8 +7,8 @@ MCP server for desktop video capture and analysis on macOS. Enables Claude to an
 ## Features
 
 - **30-minute rolling buffer** of desktop activity
-- **Visual analysis** with OCR and UI detection
-- **LLM-powered analysis** with OpenAI integration (optional)
+- **AI-powered visual analysis** with Tarsier2-7B (local) or OpenAI (cloud)
+- **Intelligent fallback** from AI vision to OCR text extraction
 - **Window-specific capture** by application
 - **Precise extraction** of time segments
 - **Production-ready** with comprehensive testing
@@ -33,7 +33,7 @@ Add to Claude Desktop config:
       "command": "node",
       "args": ["/path/to/mcp-desktop-dvr/dist/index.js"],
       "env": {
-        "OPENAI_API_KEY": "your-openai-api-key"  // Optional: for LLM analysis
+        "ANALYZER_PREFERENCE": "tarsier"  // Recommended: Use local AI
       }
     }
   }
@@ -55,21 +55,45 @@ Ask Claude:
 - "Analyze the last 30 seconds"
 - "What errors are on my screen?"
 
-## LLM Analysis (Optional)
+## Video Analysis Options
 
-When configured with an OpenAI API key, the `analyze-desktop-now` tool will use GPT-4 Vision to analyze video clips instead of OCR. This provides:
+The `analyze-desktop-now` tool supports multiple analyzers with different strengths:
 
-- More accurate application detection
-- Better understanding of visual context
-- Detection of UI interactions and workflows
-- Improved error and warning detection
+### 🤖 Tarsier2-7B (Recommended - Local AI)
+- **Runs locally** on your Mac using Metal Performance Shaders
+- **No API keys required** - completely private
+- **Excellent visual understanding** of UIs, games, and graphics
+- **Fast processing** (~5-15 seconds for 30-second clips)
 
-### Configuration
+### ☁️ OpenAI GPT-4 Vision (Cloud)
+- **Requires OpenAI API key** and internet connection
+- **Advanced analysis** with GPT-4's capabilities
+- **Good for complex scenarios** requiring reasoning
+- **Usage costs** apply per analysis
 
-Set the following environment variables in your MCP config:
-- `OPENAI_API_KEY` - Your OpenAI API key
-- `OPENAI_MODEL` - Model to use (default: `gpt-4o`)
-- `LLM_PROVIDER` - Provider to use (default: `openai`, extensible for future providers)
+### 📝 OCR Text Extraction (Fallback)
+- **Basic text extraction** from screenshots
+- **Limited effectiveness** with modern UIs
+- **Always available** as final fallback
+
+## Configuration
+
+Set environment variables in your MCP config:
+
+```json
+"env": {
+  "ANALYZER_PREFERENCE": "tarsier",    // Options: "auto", "tarsier", "openai", "ocr"
+  "OPENAI_API_KEY": "sk-...",          // For OpenAI (optional)
+  "OPENAI_MODEL": "gpt-4o"             // OpenAI model (optional)
+}
+```
+
+### Analyzer Selection Logic
+
+- `"auto"` (default) - Uses OpenAI if API key set, otherwise Tarsier, then OCR
+- `"tarsier"` - Forces Tarsier2-7B local AI (recommended)
+- `"openai"` - Forces OpenAI GPT-4 Vision (requires API key)
+- `"ocr"` - Forces basic OCR text extraction
 
 ## Documentation
 

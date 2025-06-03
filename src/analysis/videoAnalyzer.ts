@@ -19,6 +19,7 @@ export class VideoAnalyzer {
   private llmFactory: LLMAnalyzerFactory;
   private useEnhancedAnalysis = true;
   private useFocusedAnalysis = true;
+  private analyzerPreference: 'auto' | 'openai' | 'tarsier' | 'ocr';
 
   constructor() {
     this.ensureTempDir();
@@ -27,6 +28,17 @@ export class VideoAnalyzer {
     this.enhancedAnalyzer = new EnhancedVisualAnalyzer();
     this.focusedAnalyzer = new FocusedAnalyzer();
     this.llmFactory = LLMAnalyzerFactory.getInstance();
+    
+    // Get analyzer preference from environment
+    this.analyzerPreference = (process.env.ANALYZER_PREFERENCE as any) || 'auto';
+    if (this.analyzerPreference !== 'auto' && 
+        this.analyzerPreference !== 'openai' && 
+        this.analyzerPreference !== 'tarsier' && 
+        this.analyzerPreference !== 'ocr') {
+      logger.warn(`Invalid ANALYZER_PREFERENCE: ${this.analyzerPreference}, using 'auto'`);
+      this.analyzerPreference = 'auto';
+    }
+    logger.info(`Analyzer preference set to: ${this.analyzerPreference}`);
   }
 
   private async ensureTempDir(): Promise<void> {
@@ -43,11 +55,17 @@ export class VideoAnalyzer {
       
       let llmError: any = undefined;
       
-      // Try LLM analysis first if available
+      // Check analyzer preference
+      const shouldUseOpenAI = this.analyzerPreference === 'openai' || 
+                             (this.analyzerPreference === 'auto' && this.llmFactory.getActiveProvider()?.isAvailable());
+      const shouldUseTarsier = this.analyzerPreference === 'tarsier' ||
+                              (this.analyzerPreference === 'auto' && !shouldUseOpenAI);
+      
+      // Try LLM analysis first if available and preferred
       const llmProvider = this.llmFactory.getActiveProvider();
-      if (llmProvider && llmProvider.isAvailable() && options.analysisType === 'full_analysis') {
+      if (llmProvider && llmProvider.isAvailable() && shouldUseOpenAI && options.analysisType === 'full_analysis') {
         try {
-          logger.info(`Using ${llmProvider.name} for video analysis`);
+          logger.info(`Using ${llmProvider.name} for video analysis (preference: ${this.analyzerPreference})`);
           const llmResult = await llmProvider.analyzeVideo(videoPath, options.duration);
           
           // Convert OpenAI result to our format
@@ -135,16 +153,33 @@ export class VideoAnalyzer {
         
         case 'full_analysis': {
           if (this.useFocusedAnalysis) {
-            // Use focused analysis for actionable information
-            const focusedResult = await this.focusedAnalyzer.analyzeForActionableInfo(frames);
+            // Use analyzer based on preference
+            let focusedResult;
             
-            // Simple mock click data for context analysis
-            const mockClicks = [
-              { x: 1512, y: 982, timestamp: frames[Math.floor(frames.length * 0.6)]?.timestamp || 0 },
-              { x: 1512, y: 982, timestamp: frames[Math.floor(frames.length * 0.7)]?.timestamp || 0 }
-            ];
+            if (this.analyzerPreference === 'ocr') {
+              // Force OCR only
+              const frames = await this.frameExtractor.extractFrames(videoPath, {
+                interval: options.duration <= 10 ? 0.5 : 1,
+                maxFrames: Math.min(options.duration * 2, 60)
+              });
+              focusedResult = await this.focusedAnalyzer.analyzeForActionableInfo(frames);
+            } else {
+              // Use Tarsier (with OCR fallback unless explicitly disabled)
+              focusedResult = await this.focusedAnalyzer.analyzeVideoWithTarsier(videoPath, {
+                frameCount: Math.min(options.duration * 2, 16),
+                fallbackToOCR: this.analyzerPreference !== 'tarsier'
+              });
+            }
             
-            const clickContexts = await this.focusedAnalyzer.analyzeMouseClickContext(frames, mockClicks);
+            // Simple mock click data for context analysis (only if OCR was used)
+            let clickContexts: string[] = [];
+            if (focusedResult.analysisMethod === 'ocr') {
+              const mockClicks = [
+                { x: 1512, y: 982, timestamp: frames[Math.floor(frames.length * 0.6)]?.timestamp || 0 },
+                { x: 1512, y: 982, timestamp: frames[Math.floor(frames.length * 0.7)]?.timestamp || 0 }
+              ];
+              clickContexts = await this.focusedAnalyzer.analyzeMouseClickContext(frames, mockClicks);
+            }
             
             result.results.summary = focusedResult.summary;
             result.results.keyFrames = focusedResult.importantText.map((item) => ({
@@ -152,7 +187,7 @@ export class VideoAnalyzer {
               description: `${item.category}: ${item.text}`
             }));
             
-            // Add focused details with actionable information
+            // Add focused details with enhanced information
             result.results.enhancedDetails = {
               context: {
                 appName: focusedResult.application,
@@ -165,7 +200,15 @@ export class VideoAnalyzer {
                 position: { x: 1512, y: 982 },
                 nearbyText: ctx,
                 timestamp: 0
-              }))
+              })),
+              tarsierAnalysis: focusedResult.tarsierAnalysis ? {
+                provider: 'Tarsier2-Recap-7B',
+                description: focusedResult.tarsierAnalysis.analysis || '',
+                confidence: 0.9,
+                processingTime: focusedResult.tarsierAnalysis.processing_time_seconds,
+                device: focusedResult.tarsierAnalysis.device,
+                analysisMethod: focusedResult.analysisMethod || 'tarsier'
+              } : undefined
             };
             
             // Override with focused results

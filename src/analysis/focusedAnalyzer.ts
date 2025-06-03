@@ -4,6 +4,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { ExtractedFrame } from './frameExtractor.js';
+import { TarsierAnalyzer, TarsierAnalysisResult } from './tarsierAnalyzer.js';
 
 interface ImportantText {
   category: 'error' | 'warning' | 'info' | 'code' | 'ui_state' | 'file_path' | 'action';
@@ -22,14 +23,18 @@ interface FocusedAnalysisResult {
   clickedElements: string[];
   userActions: string[];
   summary: string;
+  tarsierAnalysis?: TarsierAnalysisResult;
+  analysisMethod?: 'ocr' | 'tarsier' | 'hybrid';
 }
 
 export class FocusedAnalyzer {
   private tesseractWorker: Tesseract.Worker | null = null;
+  private tarsierAnalyzer: TarsierAnalyzer;
   private debugDir: string;
   private saveDebugFrames = true;
 
   constructor() {
+    this.tarsierAnalyzer = new TarsierAnalyzer();
     this.debugDir = path.join(process.env.HOME || os.homedir(), '.mcp-desktop-dvr', 'debug-frames');
     this.ensureDebugDir();
   }
@@ -68,7 +73,8 @@ export class FocusedAnalyzer {
       importantText: [],
       clickedElements: [],
       userActions: [],
-      summary: ''
+      summary: '',
+      analysisMethod: 'ocr'
     };
 
     // Sample frames strategically - first, middle, last, and around changes
@@ -98,6 +104,184 @@ export class FocusedAnalyzer {
     result.summary = this.generateFocusedSummary(result);
     
     return result;
+  }
+
+  async analyzeVideoWithTarsier(videoPath: string, options: {
+    frameCount?: number;
+    fallbackToOCR?: boolean;
+  } = {}): Promise<FocusedAnalysisResult> {
+    const { frameCount = 16, fallbackToOCR = true } = options;
+    
+    const result: FocusedAnalysisResult = {
+      errors: [],
+      warnings: [],
+      importantText: [],
+      clickedElements: [],
+      userActions: [],
+      summary: '',
+      analysisMethod: 'tarsier'
+    };
+
+    // Try Tarsier analysis first
+    try {
+      const isAvailable = await this.tarsierAnalyzer.isAvailable();
+      if (isAvailable) {
+        const tarsierResult = await this.tarsierAnalyzer.analyzeVideo(videoPath, {
+          frameCount,
+          prompt: "Analyze this desktop recording focusing on: 1) Application being used, 2) Errors or warnings visible, 3) File being edited, 4) User actions and interactions, 5) UI state changes. Identify specific issues that need attention."
+        });
+        
+        result.tarsierAnalysis = tarsierResult;
+        
+        // Extract structured data from Tarsier analysis
+        if (tarsierResult.analysis) {
+          this.extractStructuredInfoFromTarsier(tarsierResult.analysis, result);
+        }
+        
+        result.summary = this.generateTarsierFocusedSummary(result);
+        return result;
+      }
+    } catch (error) {
+      console.warn('Tarsier analysis failed:', error);
+    }
+
+    // Fallback to OCR analysis
+    if (fallbackToOCR) {
+      try {
+        result.analysisMethod = 'ocr';
+        const { FrameExtractor } = await import('./frameExtractor.js');
+        const frameExtractor = new FrameExtractor();
+        
+        const frames = await frameExtractor.extractFrames(videoPath, {
+          interval: 1,
+          maxFrames: frameCount
+        });
+        
+        return await this.analyzeForActionableInfo(frames);
+      } catch (error) {
+        console.warn('OCR analysis also failed:', error);
+      }
+    }
+
+    result.summary = "Analysis failed: Unable to analyze video content with either Tarsier or OCR methods.";
+    return result;
+  }
+
+  private extractStructuredInfoFromTarsier(analysis: string, result: FocusedAnalysisResult): void {
+    const lines = analysis.split('\n');
+    
+    for (const line of lines) {
+      const lowerLine = line.toLowerCase();
+      
+      // Extract application name
+      if (lowerLine.includes('application') || lowerLine.includes('software') || lowerLine.includes('program')) {
+        // Try to extract specific app names
+        const apps = ['godot', 'visual studio code', 'vscode', 'chrome', 'firefox', 'safari', 'terminal', 'xcode', 'unity'];
+        for (const app of apps) {
+          if (lowerLine.includes(app)) {
+            result.application = app;
+            break;
+          }
+        }
+      }
+      
+      // Extract errors and warnings
+      if (lowerLine.includes('error') || lowerLine.includes('fail') || lowerLine.includes('exception')) {
+        result.errors.push(line.trim());
+        result.importantText.push({
+          category: 'error',
+          text: line.trim(),
+          confidence: 0.8
+        });
+      }
+      
+      if (lowerLine.includes('warning') || lowerLine.includes('warn') || lowerLine.includes('deprecated')) {
+        result.warnings.push(line.trim());
+        result.importantText.push({
+          category: 'warning',
+          text: line.trim(),
+          confidence: 0.7
+        });
+      }
+      
+      // Extract file information
+      if (line.match(/\.(gd|tscn|tres|cs|js|py|cpp|h|txt|json|xml|yaml|yml)[\s\]]/i)) {
+        const match = line.match(/([a-zA-Z0-9_.-]+\.(gd|tscn|tres|cs|js|py|cpp|h|txt|json|xml|yaml|yml))/i);
+        if (match) {
+          result.currentFile = match[1];
+          result.importantText.push({
+            category: 'file_path',
+            text: match[1],
+            confidence: 0.8
+          });
+        }
+      }
+      
+      // Extract user actions
+      if (lowerLine.includes('click') || lowerLine.includes('select') || lowerLine.includes('press') || 
+          lowerLine.includes('type') || lowerLine.includes('edit') || lowerLine.includes('open')) {
+        result.userActions.push(line.trim());
+        result.importantText.push({
+          category: 'action',
+          text: line.trim(),
+          confidence: 0.6
+        });
+      }
+    }
+  }
+
+  private generateTarsierFocusedSummary(result: FocusedAnalysisResult): string {
+    const parts: string[] = [];
+    
+    // Start with AI analysis
+    if (result.tarsierAnalysis?.analysis) {
+      parts.push("🤖 **AI Visual Analysis:**");
+      parts.push(result.tarsierAnalysis.analysis);
+      parts.push("");
+    }
+    
+    // Add structured findings
+    if (result.application) {
+      parts.push(`📱 **Application:** ${result.application}`);
+    }
+    
+    if (result.currentFile) {
+      parts.push(`📄 **File:** ${result.currentFile}`);
+    }
+    
+    // Errors - MOST IMPORTANT
+    if (result.errors.length > 0) {
+      parts.push("❌ **ERRORS DETECTED:**");
+      result.errors.forEach(error => {
+        parts.push(`- ${error}`);
+      });
+      parts.push("");
+    }
+    
+    // Warnings
+    if (result.warnings.length > 0) {
+      parts.push("⚠️ **Warnings:**");
+      result.warnings.forEach(warning => {
+        parts.push(`- ${warning}`);
+      });
+      parts.push("");
+    }
+    
+    // Key actions
+    if (result.userActions.length > 0) {
+      parts.push("🎯 **Actions:**");
+      result.userActions.slice(0, 3).forEach(action => {
+        parts.push(`- ${action}`);
+      });
+    }
+    
+    // Analysis quality note
+    if (result.tarsierAnalysis) {
+      parts.push(`\n📊 **Analysis Quality:** Advanced AI vision analysis (${result.tarsierAnalysis.processing_time_seconds}s processing time)`);
+      parts.push(`🖥️ **Device:** ${result.tarsierAnalysis.device}`);
+    }
+    
+    return parts.join('\n');
   }
 
   private selectKeyFrames(frames: ExtractedFrame[]): ExtractedFrame[] {

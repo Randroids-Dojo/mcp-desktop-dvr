@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { FrameExtractor, ExtractedFrame } from './frameExtractor.js';
 import { UIElement, MouseActivity } from './types.js';
+import { TarsierAnalyzer, TarsierAnalysisResult } from './tarsierAnalyzer.js';
 
 interface ApplicationContext {
   appName?: string;
@@ -23,11 +24,13 @@ interface ScreenRegion {
 export class EnhancedVisualAnalyzer {
   private frameExtractor: FrameExtractor;
   private tesseractWorker: Tesseract.Worker | null = null;
+  private tarsierAnalyzer: TarsierAnalyzer;
   private debugMode = true; // Enable frame saving for debugging
   private debugDir: string;
 
   constructor() {
     this.frameExtractor = new FrameExtractor();
+    this.tarsierAnalyzer = new TarsierAnalyzer();
     this.debugDir = path.join(process.env.HOME || os.homedir(), '.mcp-desktop-dvr', 'debug-frames');
     this.ensureDebugDir();
   }
@@ -81,6 +84,99 @@ export class EnhancedVisualAnalyzer {
     const summary = await this.generateDetailedSummary(context, regions, timeline);
     
     return { context, regions, timeline, summary };
+  }
+
+  async analyzeVideoWithTarsier(videoPath: string, options: {
+    frameCount?: number;
+    prompt?: string;
+    fallbackToOCR?: boolean;
+  } = {}): Promise<{
+    tarsierAnalysis?: TarsierAnalysisResult;
+    ocrAnalysis?: {
+      context: ApplicationContext;
+      regions: ScreenRegion[];
+      timeline: Array<{ timestamp: number; event: string; details?: Record<string, unknown> }>;
+      summary: string;
+    };
+    hybridSummary: string;
+    analysisMethod: 'tarsier' | 'ocr' | 'hybrid';
+  }> {
+    const { frameCount = 16, prompt, fallbackToOCR = true } = options;
+    
+    let tarsierAnalysis: TarsierAnalysisResult | undefined;
+    let ocrAnalysis: any;
+    let analysisMethod: 'tarsier' | 'ocr' | 'hybrid' = 'tarsier';
+
+    // Try Tarsier analysis first
+    try {
+      const isAvailable = await this.tarsierAnalyzer.isAvailable();
+      if (isAvailable) {
+        tarsierAnalysis = await this.tarsierAnalyzer.analyzeVideo(videoPath, {
+          frameCount,
+          prompt: prompt || "Analyze this desktop screen recording sequence. Describe the user interface elements, actions being performed, applications in use, and any significant changes or events. Focus on what the user is doing and what software they are interacting with."
+        });
+      }
+    } catch (error) {
+      console.warn('Tarsier analysis failed:', error);
+    }
+
+    // Fallback to OCR analysis if requested and Tarsier failed
+    if (!tarsierAnalysis && fallbackToOCR) {
+      try {
+        analysisMethod = 'ocr';
+        const frames = await this.frameExtractor.extractFrames(videoPath, {
+          interval: 1,
+          maxFrames: frameCount
+        });
+        ocrAnalysis = await this.analyzeFrames(frames);
+      } catch (error) {
+        console.warn('OCR analysis failed:', error);
+      }
+    }
+
+    // If both are available, mark as hybrid
+    if (tarsierAnalysis && ocrAnalysis) {
+      analysisMethod = 'hybrid';
+    }
+
+    // Generate hybrid summary
+    const hybridSummary = this.generateHybridSummary(tarsierAnalysis, ocrAnalysis);
+
+    return {
+      tarsierAnalysis,
+      ocrAnalysis,
+      hybridSummary,
+      analysisMethod
+    };
+  }
+
+  private generateHybridSummary(
+    tarsierResult?: TarsierAnalysisResult,
+    ocrResult?: any
+  ): string {
+    const parts: string[] = [];
+
+    if (tarsierResult?.analysis) {
+      parts.push("🤖 AI Visual Analysis:");
+      parts.push(tarsierResult.analysis);
+    }
+
+    if (ocrResult?.summary) {
+      parts.push("📝 OCR Text Analysis:");
+      parts.push(ocrResult.summary);
+    }
+
+    if (tarsierResult && ocrResult) {
+      parts.push("📊 Analysis Quality: Hybrid analysis using both AI vision and OCR text extraction");
+    } else if (tarsierResult) {
+      parts.push("📊 Analysis Quality: AI vision analysis (recommended for modern UIs)");
+    } else if (ocrResult) {
+      parts.push("📊 Analysis Quality: OCR text analysis (limited for graphical interfaces)");
+    } else {
+      parts.push("❌ Analysis failed: Unable to analyze video content");
+    }
+
+    return parts.join('\n\n');
   }
 
   private async detectApplicationContext(frame: ExtractedFrame): Promise<ApplicationContext> {
