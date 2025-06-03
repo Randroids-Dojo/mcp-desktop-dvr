@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { ExtractedFrame } from './frameExtractor.js';
 import { TarsierAnalyzer, TarsierAnalysisResult } from './tarsierAnalyzer.js';
+import { logger } from '../utils/logger.js';
 
 interface ImportantText {
   category: 'error' | 'warning' | 'info' | 'code' | 'ui_state' | 'file_path' | 'action';
@@ -124,8 +125,12 @@ export class FocusedAnalyzer {
 
     // Try Tarsier analysis first
     try {
+      logger.info('Checking Tarsier availability...');
       const isAvailable = await this.tarsierAnalyzer.isAvailable();
+      logger.info(`Tarsier available: ${isAvailable}`);
+      
       if (isAvailable) {
+        logger.info('Starting Tarsier video analysis...');
         const tarsierResult = await this.tarsierAnalyzer.analyzeVideo(videoPath, {
           frameCount,
           prompt: "Analyze this desktop recording focusing on: 1) Application being used, 2) Errors or warnings visible, 3) File being edited, 4) User actions and interactions, 5) UI state changes. Identify specific issues that need attention."
@@ -139,10 +144,13 @@ export class FocusedAnalyzer {
         }
         
         result.summary = this.generateTarsierFocusedSummary(result);
+        logger.info('Tarsier analysis completed successfully');
         return result;
+      } else {
+        logger.info('Tarsier not available, falling back to OCR');
       }
     } catch (error) {
-      console.warn('Tarsier analysis failed:', error);
+      logger.warn('Tarsier analysis failed:', error);
     }
 
     // Fallback to OCR analysis

@@ -122,11 +122,20 @@ export class TarsierAnalyzer {
           stdio: ['pipe', 'pipe', 'pipe']
         });
 
+        // Set a 10 second timeout for availability check
+        const timeout = setTimeout(() => {
+          python.kill('SIGTERM');
+          logger.warn('Tarsier availability check timed out');
+          resolve(false);
+        }, 10000);
+
         python.on('close', (code) => {
+          clearTimeout(timeout);
           resolve(code === 0);
         });
 
         python.on('error', () => {
+          clearTimeout(timeout);
           resolve(false);
         });
       });

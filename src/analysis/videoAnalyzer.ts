@@ -64,6 +64,8 @@ export class VideoAnalyzer {
       // When tarsier is explicitly preferred, don't use OpenAI
       const actuallyUseOpenAI = shouldUseOpenAI && this.analyzerPreference !== 'tarsier' && this.analyzerPreference !== 'ocr';
       
+      logger.info(`Analyzer preference: ${this.analyzerPreference}, OpenAI available: ${this.llmFactory.getActiveProvider()?.isAvailable()}, will use OpenAI: ${actuallyUseOpenAI}`);
+      
       // Try LLM analysis first if available and preferred
       const llmProvider = this.llmFactory.getActiveProvider();
       if (llmProvider && llmProvider.isAvailable() && actuallyUseOpenAI && options.analysisType === 'full_analysis') {
