@@ -35,11 +35,22 @@ class TarsierVideoAnalyzer:
             self.processor = AutoProcessor.from_pretrained(self.model_name)
             
             print("Loading Tarsier2-Recap-7B model...", file=sys.stderr)
-            self.model = AutoModelForVision2Seq.from_pretrained(
-                self.model_name,
-                torch_dtype=torch.float16 if self.device == "mps" else torch.float32,
-                device_map="auto" if self.device != "mps" else None
-            )
+            # Use local_files_only if model is already cached
+            try:
+                self.model = AutoModelForVision2Seq.from_pretrained(
+                    self.model_name,
+                    torch_dtype=torch.float16 if self.device == "mps" else torch.float32,
+                    device_map="auto" if self.device != "mps" else None,
+                    local_files_only=True
+                )
+                print("Loaded model from cache", file=sys.stderr)
+            except:
+                print("Model not in cache, downloading...", file=sys.stderr)
+                self.model = AutoModelForVision2Seq.from_pretrained(
+                    self.model_name,
+                    torch_dtype=torch.float16 if self.device == "mps" else torch.float32,
+                    device_map="auto" if self.device != "mps" else None
+                )
             
             if self.device == "mps":
                 self.model = self.model.to(self.device)

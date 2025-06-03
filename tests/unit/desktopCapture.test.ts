@@ -1,29 +1,30 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { DesktopCapture } from '../../src/capture/desktopCapture.js';
-import { WindowInfo } from '../../src/capture/windowDetector.js';
 
-// Mock the aperture module
-jest.mock('aperture', () => ({
-  recorder: {
-    startRecording: jest.fn(),
-    stopRecording: jest.fn(),
-  },
+// Mock modules before imports
+const mockRecorder = {
+  startRecording: jest.fn(),
+  stopRecording: jest.fn(),
+};
+
+jest.unstable_mockModule('aperture', () => ({
+  recorder: mockRecorder,
 }));
 
-// Mock fs and path modules
-jest.mock('fs', () => ({
+jest.unstable_mockModule('fs', () => ({
   existsSync: jest.fn().mockReturnValue(true),
   mkdirSync: jest.fn(),
 }));
 
-jest.mock('child_process', () => ({
+jest.unstable_mockModule('child_process', () => ({
   execSync: jest.fn(),
 }));
 
-import { recorder } from 'aperture';
-import { execSync } from 'child_process';
+// Import after mocks
+const { DesktopCapture } = await import('../../src/capture/desktopCapture.js');
+const { WindowInfo } = await import('../../src/capture/windowDetector.js');
+const { execSync } = await import('child_process');
 
-const mockedRecorder = recorder as jest.Mocked<typeof recorder>;
+const mockedRecorder = mockRecorder;
 const mockedExecSync = execSync as jest.MockedFunction<typeof execSync>;
 
 describe('DesktopCapture', () => {
@@ -103,13 +104,12 @@ describe('DesktopCapture', () => {
     });
 
     it('should return all available windows when no bundle ID specified', async () => {
-      jest.spyOn(desktopCapture as any, 'windowDetector').mockReturnValue({
-        getCommonBundleIds: jest.fn().mockReturnValue({
-          test: 'com.test.app',
-        }),
-        isApplicationRunning: jest.fn().mockResolvedValue(true),
-        findWindowsByBundleId: jest.fn().mockResolvedValue([]),
+      // Mock the windowDetector methods directly
+      (desktopCapture as any).windowDetector.getCommonBundleIds = jest.fn().mockReturnValue({
+        test: 'com.test.app',
       });
+      (desktopCapture as any).windowDetector.isApplicationRunning = jest.fn().mockResolvedValue(true);
+      (desktopCapture as any).windowDetector.findWindowsByBundleId = jest.fn().mockResolvedValue([]);
 
       const windows = await desktopCapture.getAvailableWindows();
       expect(Array.isArray(windows)).toBe(true);

@@ -211,12 +211,6 @@ export class CircularBuffer {
     };
   }
 
-  async cleanup(): Promise<void> {
-    // Stop any ongoing operations and clean up temporary files
-    this.currentSegment = null;
-    await this.cleanupOldSegments();
-    this.segments = [];
-  }
 
   // Removed unused segment management methods - segments are now created per video file
 
@@ -266,5 +260,31 @@ export class CircularBuffer {
     } catch (error) {
       console.error('Error cleaning up old extracts:', error);
     }
+  }
+
+  async cleanup(): Promise<void> {
+    log('[CircularBuffer] Cleaning up buffer');
+    
+    // Remove all segments
+    for (const segment of this.segments) {
+      try {
+        await fs.unlink(segment.filePath);
+      } catch (error) {
+        // Ignore errors for missing files
+      }
+    }
+    
+    // Clear segments array
+    this.segments = [];
+    this.currentSegment = null;
+    
+    // Remove buffer directory
+    try {
+      await fs.rm(this.bufferDir, { recursive: true, force: true });
+    } catch (error) {
+      console.error('Error removing buffer directory:', error);
+    }
+    
+    this.isInitialized = false;
   }
 }

@@ -55,15 +55,18 @@ export class VideoAnalyzer {
       
       let llmError: any = undefined;
       
-      // Check analyzer preference
+      // Check analyzer preference - explicit preferences override auto mode
       const shouldUseOpenAI = this.analyzerPreference === 'openai' || 
                              (this.analyzerPreference === 'auto' && this.llmFactory.getActiveProvider()?.isAvailable());
       const shouldUseTarsier = this.analyzerPreference === 'tarsier' ||
-                              (this.analyzerPreference === 'auto' && !shouldUseOpenAI);
+                              (this.analyzerPreference === 'auto' && !this.llmFactory.getActiveProvider()?.isAvailable());
+      
+      // When tarsier is explicitly preferred, don't use OpenAI
+      const actuallyUseOpenAI = shouldUseOpenAI && this.analyzerPreference !== 'tarsier' && this.analyzerPreference !== 'ocr';
       
       // Try LLM analysis first if available and preferred
       const llmProvider = this.llmFactory.getActiveProvider();
-      if (llmProvider && llmProvider.isAvailable() && shouldUseOpenAI && options.analysisType === 'full_analysis') {
+      if (llmProvider && llmProvider.isAvailable() && actuallyUseOpenAI && options.analysisType === 'full_analysis') {
         try {
           logger.info(`Using ${llmProvider.name} for video analysis (preference: ${this.analyzerPreference})`);
           const llmResult = await llmProvider.analyzeVideo(videoPath, options.duration);

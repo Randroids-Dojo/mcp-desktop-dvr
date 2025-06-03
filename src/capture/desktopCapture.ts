@@ -105,10 +105,22 @@ export class DesktopCapture extends EventEmitter {
       throw new Error('Capture is already in progress');
     }
 
+    // Validate capture options
+    if (options.fps !== undefined && (options.fps < 1 || options.fps > 120)) {
+      throw new Error('FPS must be between 1 and 120');
+    }
+    if (options.quality !== undefined && (options.quality < 1 || options.quality > 100)) {
+      throw new Error('Quality must be between 1 and 100');
+    }
+
     const captureOptions: CaptureOptions = {
       fps: options.fps || 30,
       quality: options.quality || 70,
       audioDeviceId: options.audioDeviceId,
+      bundleId: options.bundleId,
+      windowPadding: options.windowPadding,
+      captureAllWindows: options.captureAllWindows,
+      cropArea: options.cropArea,
     };
 
     try {
@@ -166,27 +178,32 @@ export class DesktopCapture extends EventEmitter {
     let cropArea: CropArea | undefined = options.cropArea;
     
     if (options.bundleId && !cropArea) {
-      if (options.captureAllWindows) {
-        // Find all windows and create a bounding box that encompasses them all
-        const allWindows = await this.windowDetector.findWindowsByBundleId(options.bundleId);
-        const visibleWindows = allWindows.filter(w => w.isVisible && w.width > 100 && w.height > 100);
-        
-        if (visibleWindows.length > 0) {
-          cropArea = this.windowDetector.createBoundingBoxForWindows(visibleWindows, options.windowPadding || 10);
-          console.error(`[DesktopCapture] Capturing all ${visibleWindows.length} windows for ${options.bundleId} (${cropArea.width}x${cropArea.height})`);
+      try {
+        if (options.captureAllWindows) {
+          // Find all windows and create a bounding box that encompasses them all
+          const allWindows = await this.windowDetector.findWindowsByBundleId(options.bundleId);
+          const visibleWindows = allWindows.filter(w => w.isVisible && w.width > 100 && w.height > 100);
+          
+          if (visibleWindows.length > 0) {
+            cropArea = this.windowDetector.createBoundingBoxForWindows(visibleWindows, options.windowPadding || 10);
+            console.error(`[DesktopCapture] Capturing all ${visibleWindows.length} windows for ${options.bundleId} (${cropArea.width}x${cropArea.height})`);
+          } else {
+            console.error(`[DesktopCapture] Warning: Could not find windows for bundle ID ${options.bundleId}, falling back to full screen`);
+          }
         } else {
-          console.error(`[DesktopCapture] Warning: Could not find windows for bundle ID ${options.bundleId}, falling back to full screen`);
+          // Find the main/largest window (existing behavior)
+          const targetWindow = await this.windowDetector.findMainWindowByBundleId(options.bundleId);
+          if (targetWindow) {
+            this.targetWindow = targetWindow;
+            cropArea = this.windowDetector.windowToCropArea(targetWindow, options.windowPadding || 10);
+            console.error(`[DesktopCapture] Found target window for ${options.bundleId}: ${targetWindow.title} (${cropArea.width}x${cropArea.height})`);
+          } else {
+            console.error(`[DesktopCapture] Warning: Could not find window for bundle ID ${options.bundleId}, falling back to full screen`);
+          }
         }
-      } else {
-        // Find the main/largest window (existing behavior)
-        const targetWindow = await this.windowDetector.findMainWindowByBundleId(options.bundleId);
-        if (targetWindow) {
-          this.targetWindow = targetWindow;
-          cropArea = this.windowDetector.windowToCropArea(targetWindow, options.windowPadding || 10);
-          console.error(`[DesktopCapture] Found target window for ${options.bundleId}: ${targetWindow.title} (${cropArea.width}x${cropArea.height})`);
-        } else {
-          console.error(`[DesktopCapture] Warning: Could not find window for bundle ID ${options.bundleId}, falling back to full screen`);
-        }
+      } catch (error) {
+        // Window detection failed, log and continue with full screen
+        console.error(`[DesktopCapture] Window detection error for ${options.bundleId}: ${error}. Falling back to full screen`);
       }
     }
 

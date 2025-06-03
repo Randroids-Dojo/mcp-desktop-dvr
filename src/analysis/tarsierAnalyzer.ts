@@ -60,6 +60,15 @@ export class TarsierAnalyzer {
 
       let stdout = '';
       let stderr = '';
+      let killed = false;
+
+      // Set a timeout of 2 minutes for the analysis
+      const timeout = setTimeout(() => {
+        killed = true;
+        python.kill('SIGTERM');
+        logger.error('Tarsier analysis timed out after 2 minutes');
+        reject(new Error('Tarsier analysis timed out. Model may need to be downloaded or initialized. Try running with ANALYZER_PREFERENCE=ocr'));
+      }, 2 * 60 * 1000);
 
       python.stdout.on('data', (data) => {
         stdout += data.toString();
@@ -77,6 +86,12 @@ export class TarsierAnalyzer {
       });
 
       python.on('close', (code) => {
+        clearTimeout(timeout);
+        
+        if (killed) {
+          return; // Already rejected due to timeout
+        }
+        
         if (code === 0) {
           try {
             const result: TarsierAnalysisResult = JSON.parse(stdout);
@@ -93,6 +108,7 @@ export class TarsierAnalyzer {
       });
 
       python.on('error', (error) => {
+        clearTimeout(timeout);
         logger.error('Failed to start Tarsier analysis:', error);
         reject(new Error(`Failed to start analysis: ${error.message}`));
       });
