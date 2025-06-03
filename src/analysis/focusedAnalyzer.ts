@@ -2,6 +2,7 @@ import sharp from 'sharp';
 import Tesseract from 'tesseract.js';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { ExtractedFrame } from './frameExtractor.js';
 
 interface ImportantText {
@@ -29,7 +30,7 @@ export class FocusedAnalyzer {
   private saveDebugFrames = true;
 
   constructor() {
-    this.debugDir = path.join(process.env.HOME || '', '.mcp-desktop-dvr', 'debug-frames');
+    this.debugDir = path.join(process.env.HOME || os.homedir(), '.mcp-desktop-dvr', 'debug-frames');
     this.ensureDebugDir();
   }
 

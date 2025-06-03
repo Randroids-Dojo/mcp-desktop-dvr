@@ -41,6 +41,17 @@ const { DesktopCapture } = await import('../../src/capture/desktopCapture.js');
 
 describe('MCP Tools Integration', () => {
   let desktopCapture: DesktopCapture;
+  
+  // Mock console.error to reduce test noise
+  const originalConsoleError = console.error;
+  
+  beforeAll(() => {
+    console.error = jest.fn();
+  });
+
+  afterAll(() => {
+    console.error = originalConsoleError;
+  });
   let server: Server;
 
   beforeEach(async () => {
@@ -76,25 +87,24 @@ describe('MCP Tools Integration', () => {
     });
 
     it('should start window-specific capture', async () => {
-      // Mock window detection
-      jest.spyOn(desktopCapture as any, 'windowDetector').mockReturnValue({
-        findMainWindowByBundleId: jest.fn().mockResolvedValue({
-          windowId: 123,
-          bundleId: 'com.test.app',
-          title: 'Test Window',
-          x: 100,
-          y: 200,
-          width: 800,
-          height: 600,
-          isVisible: true,
-          processName: 'TestApp',
-        }),
-        windowToCropArea: jest.fn().mockReturnValue({
-          x: 90,
-          y: 190,
-          width: 820,
-          height: 620,
-        }),
+      // Mock the window detector method directly
+      const mockWindowDetector = (desktopCapture as any).windowDetector;
+      jest.spyOn(mockWindowDetector, 'findMainWindowByBundleId').mockResolvedValue({
+        windowId: 123,
+        bundleId: 'com.test.app',
+        title: 'Test Window',
+        x: 100,
+        y: 200,
+        width: 800,
+        height: 600,
+        isVisible: true,
+        processName: 'TestApp',
+      });
+      jest.spyOn(mockWindowDetector, 'windowToCropArea').mockReturnValue({
+        x: 90,
+        y: 190,
+        width: 820,
+        height: 620,
       });
 
       await desktopCapture.startCapture({
@@ -155,7 +165,7 @@ describe('MCP Tools Integration', () => {
 
     it('should handle stop without active recording', async () => {
       await expect(desktopCapture.stopCapture())
-        .rejects.toThrow('No active recording');
+        .rejects.toThrow('No capture in progress');
     });
   });
 
@@ -184,9 +194,8 @@ describe('MCP Tools Integration', () => {
   describe('analyze-desktop-now tool', () => {
     it('should extract video for analysis', async () => {
       const mockExtractPath = '/test/extracted-video.mp4';
-      jest.spyOn(desktopCapture as any, 'circularBuffer').mockReturnValue({
-        extractLastNSeconds: jest.fn().mockResolvedValue(mockExtractPath),
-      });
+      const mockCircularBuffer = (desktopCapture as any).circularBuffer;
+      jest.spyOn(mockCircularBuffer, 'extractLastNSeconds').mockResolvedValue(mockExtractPath);
 
       // Start capture
       await desktopCapture.startCapture({ fps: 30, quality: 70 });
@@ -199,7 +208,7 @@ describe('MCP Tools Integration', () => {
 
     it('should handle extraction without recording', async () => {
       await expect(desktopCapture.extractLastNSeconds(30))
-        .rejects.toThrow('No recording history available');
+        .rejects.toThrow('No active recording to extract from');
     });
   });
 

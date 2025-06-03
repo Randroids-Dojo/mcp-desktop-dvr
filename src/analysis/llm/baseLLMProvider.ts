@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
+import * as os from 'os';
 import { logger } from '../../utils/logger.js';
 import { LLMProvider, LLMVideoAnalysis, VideoPreparationOptions } from './types.js';
 
@@ -14,7 +15,7 @@ export abstract class BaseLLMProvider implements LLMProvider {
   
   constructor(name: string, maxVideoSize: number = 20 * 1024 * 1024) {
     this.name = name;
-    this.tempDir = path.join(process.env.HOME || '', '.mcp-desktop-dvr', 'temp');
+    this.tempDir = path.join(process.env.HOME || os.homedir(), '.mcp-desktop-dvr', 'temp');
     this.maxVideoSize = maxVideoSize;
   }
   

@@ -146,9 +146,53 @@ describe('WindowDetector', () => {
 
       const windows = await windowDetector.findWindowsByBundleId('com.test.app');
       
-      // Since parseAppleScriptOutput is simplified in our implementation,
-      // we expect an empty array for now
       expect(Array.isArray(windows)).toBe(true);
+      expect(windows.length).toBe(1);
+      expect(windows[0].title).toBe('Test Window');
+      expect(windows[0].x).toBe(100);
+      expect(windows[0].y).toBe(200);
+      expect(windows[0].width).toBe(800);
+      expect(windows[0].height).toBe(600);
+      expect(windows[0].isVisible).toBe(true);
+    });
+
+    it('should handle multiple windows', async () => {
+      const mockAppleScriptOutput = `{{title:"Window 1", x:100, y:200, width:800, height:600, visible:true}, {title:"Window 2", x:200, y:300, width:1000, height:700, visible:false}}`;
+      mockExecAsync.mockResolvedValue({ stdout: mockAppleScriptOutput, stderr: '' });
+
+      const windows = await windowDetector.findWindowsByBundleId('com.test.app');
+      
+      expect(Array.isArray(windows)).toBe(true);
+      expect(windows.length).toBe(2);
+      expect(windows[0].title).toBe('Window 1');
+      expect(windows[0].isVisible).toBe(true);
+      expect(windows[1].title).toBe('Window 2');
+      expect(windows[1].isVisible).toBe(false);
+    });
+
+    it('should handle empty AppleScript output', async () => {
+      mockExecAsync.mockResolvedValue({ stdout: '', stderr: '' });
+
+      const windows = await windowDetector.findWindowsByBundleId('com.test.app');
+      expect(windows).toEqual([]);
+    });
+
+    it('should handle missing value output', async () => {
+      mockExecAsync.mockResolvedValue({ stdout: 'missing value', stderr: '' });
+
+      const windows = await windowDetector.findWindowsByBundleId('com.test.app');
+      expect(windows).toEqual([]);
+    });
+
+    it('should skip windows with invalid dimensions', async () => {
+      const mockAppleScriptOutput = `{{title:"Valid Window", x:100, y:200, width:800, height:600, visible:true}, {title:"Invalid Window", x:0, y:0, width:0, height:0, visible:true}}`;
+      mockExecAsync.mockResolvedValue({ stdout: mockAppleScriptOutput, stderr: '' });
+
+      const windows = await windowDetector.findWindowsByBundleId('com.test.app');
+      
+      expect(Array.isArray(windows)).toBe(true);
+      expect(windows.length).toBe(1);
+      expect(windows[0].title).toBe('Valid Window');
     });
 
     it('should handle errors in window discovery', async () => {

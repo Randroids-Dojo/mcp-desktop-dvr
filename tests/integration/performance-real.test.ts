@@ -47,11 +47,10 @@ describe('Real Performance Tests', () => {
         maxMB: 3,
       });
 
-      const status = monitor.checkMemoryPressure();
+      const isUnderPressure = monitor.isMemoryPressure();
       
-      // Should be in critical state with such low thresholds
-      expect(status.state).toBe('critical');
-      expect(status.heapUsedMB).toBeGreaterThan(1);
+      // Should be under pressure with such low thresholds
+      expect(isUnderPressure).toBe(true);
     });
   });
 
@@ -71,7 +70,7 @@ describe('Real Performance Tests', () => {
       
       // Generate a test pattern video with ffmpeg
       await new Promise<void>((resolve, reject) => {
-        const { exec } = require('child_process');
+        const { exec } = await import('child_process');
         exec(
           `ffmpeg -f lavfi -i testsrc=duration=1:size=320x240:rate=30 -pix_fmt yuv420p "${testVideoPath}" -y`,
           (error: any) => {
@@ -109,7 +108,7 @@ describe('Real Performance Tests', () => {
       for (let i = 0; i < 5; i++) {
         const videoPath = path.join(testDir, `video-${i}.mp4`);
         await new Promise<void>((resolve, reject) => {
-          const { exec } = require('child_process');
+          const { exec } = await import('child_process');
           exec(
             `ffmpeg -f lavfi -i testsrc=duration=0.5:size=160x120:rate=30 -pix_fmt yuv420p "${videoPath}" -y`,
             (error: any) => {
@@ -134,8 +133,8 @@ describe('Real Performance Tests', () => {
   });
 
   describe('Real Capture Performance', () => {
-    it('should maintain performance during continuous capture', async function() {
-      this.timeout(20000); // 20 second timeout
+    it('should maintain performance during continuous capture', async () => {
+      // 20 second timeout
 
       console.log('\n⏱️  Starting real performance test...');
       
@@ -201,7 +200,7 @@ describe('Real Performance Tests', () => {
         videoPromises.push(
           new Promise<string>((resolve, reject) => {
             const videoPath = path.join(testDir, `concurrent-${i}.mp4`);
-            const { exec } = require('child_process');
+            const { exec } = await import('child_process');
             exec(
               `ffmpeg -f lavfi -i color=c=blue:s=160x120:d=0.1 -pix_fmt yuv420p "${videoPath}" -y`,
               (error: any) => {

@@ -12,17 +12,19 @@ jest.unstable_mockModule('aperture', () => ({
 
 // Mock tesseract
 jest.unstable_mockModule('tesseract.js', () => ({
-  createWorker: jest.fn(() => ({
-    loadLanguage: jest.fn().mockResolvedValue(undefined),
-    initialize: jest.fn().mockResolvedValue(undefined),
-    recognize: jest.fn().mockResolvedValue({
-      data: {
-        text: 'Mock text\nError: Test error',
-        words: []
-      }
-    }),
-    terminate: jest.fn().mockResolvedValue(undefined)
-  }))
+  default: {
+    createWorker: jest.fn(() => ({
+      loadLanguage: jest.fn().mockResolvedValue(undefined),
+      initialize: jest.fn().mockResolvedValue(undefined),
+      recognize: jest.fn().mockResolvedValue({
+        data: {
+          text: 'Mock text\nError: Test error',
+          words: []
+        }
+      }),
+      terminate: jest.fn().mockResolvedValue(undefined)
+    }))
+  }
 }));
 
 // Mock sharp
@@ -91,6 +93,9 @@ describe('Simple Integration Test', () => {
   it('should perform basic capture operations', async () => {
     const capture = new DesktopCapture();
     
+    // Initialize the buffer first
+    await (capture as any).circularBuffer.initialize();
+    
     // Start capture
     await capture.startCapture({ fps: 30, quality: 70 });
     
@@ -110,6 +115,9 @@ describe('Simple Integration Test', () => {
   it('should extract and analyze video', async () => {
     const capture = new DesktopCapture();
     const analyzer = new VideoAnalyzer();
+    
+    // Initialize the buffer first
+    await (capture as any).circularBuffer.initialize();
     
     // Mock the extraction process
     jest.spyOn(capture as any, 'extractLastNSeconds').mockResolvedValue('/tmp/mock-extract.mp4');
@@ -140,9 +148,9 @@ describe('Simple Integration Test', () => {
       summary: 'Mock analysis'
     };
     
-    jest.spyOn(analyzer, 'analyzeFocusedElements').mockResolvedValue(mockAnalysis);
+    jest.spyOn(analyzer, 'analyze').mockResolvedValue(mockAnalysis);
     
-    const analysis = await analyzer.analyzeFocusedElements(videoPath);
+    const analysis = await analyzer.analyze(videoPath, { analysisType: 'focused_errors', duration: 30 });
     expect(analysis.errors).toContain('Error: Test error');
     expect(analysis.appContext).toBe('Test Application');
     
@@ -152,6 +160,16 @@ describe('Simple Integration Test', () => {
 
   it('should handle capture lifecycle correctly', async () => {
     const capture = new DesktopCapture();
+    
+    // Initialize the buffer first
+    await (capture as any).circularBuffer.initialize();
+    
+    // Ensure we start clean
+    try {
+      await capture.stopCapture();
+    } catch (error) {
+      // Ignore if not recording
+    }
     
     // Initial status
     let status = capture.getStatus();

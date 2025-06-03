@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { AnalysisOptions, AnalysisResult, UIElement, MouseActivity } from './types.js';
 import { FrameExtractor, ExtractedFrame } from './frameExtractor.js';
 import { VisualAnalyzer } from './visualAnalyzer.js';
@@ -10,7 +11,7 @@ import { LLMAnalyzerFactory } from './llm/index.js';
 import { logger } from '../utils/logger.js';
 
 export class VideoAnalyzer {
-  private readonly tempDir = path.join(process.env.HOME || '', '.mcp-desktop-dvr', 'analysis');
+  private readonly tempDir = path.join(process.env.HOME || os.homedir(), '.mcp-desktop-dvr', 'analysis');
   private frameExtractor: FrameExtractor;
   private visualAnalyzer: VisualAnalyzer;
   private enhancedAnalyzer: EnhancedVisualAnalyzer;
@@ -39,6 +40,8 @@ export class VideoAnalyzer {
   async analyze(videoPath: string, options: AnalysisOptions): Promise<AnalysisResult> {
     try {
       // Starting visual analysis - logged to debug file
+      
+      let llmError: any = undefined;
       
       // Try LLM analysis first if available
       const llmProvider = this.llmFactory.getActiveProvider();
@@ -82,6 +85,14 @@ export class VideoAnalyzer {
           };
         } catch (error) {
           logger.warn(`${llmProvider.name} analysis failed, falling back to OCR analysis:`, error);
+          
+          // Store the LLM error for transparency in the response
+          llmError = {
+            provider: llmProvider.name,
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          };
+          
           // Continue with fallback analysis
         }
       }
@@ -209,6 +220,11 @@ export class VideoAnalyzer {
         await this.enhancedAnalyzer.cleanup();
       } else {
         await this.visualAnalyzer.cleanup();
+      }
+      
+      // Add LLM error information if fallback was used
+      if (llmError) {
+        result.results.llmError = llmError;
       }
       
       // Analysis completed - logged to debug file

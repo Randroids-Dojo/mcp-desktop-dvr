@@ -16,9 +16,12 @@ export class OpenAIProvider extends BaseLLMProvider {
 
   private initializeClient(): void {
     const apiKey = process.env.OPENAI_API_KEY;
+    logger.info(`[OpenAI] Checking for API key: ${apiKey ? 'Found (length: ' + apiKey.length + ')' : 'Not found'}`);
+    logger.info(`[OpenAI] All env vars: ${Object.keys(process.env).filter(k => k.includes('OPENAI')).join(', ') || 'None with OPENAI'}`);
+    
     if (apiKey) {
       this.client = new OpenAI({ apiKey });
-      logger.info('OpenAI client initialized');
+      logger.info('OpenAI client initialized successfully');
     } else {
       logger.info('OpenAI API key not found - video analysis will use fallback OCR method');
     }

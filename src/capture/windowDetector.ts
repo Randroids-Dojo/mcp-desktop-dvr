@@ -174,19 +174,164 @@ export class WindowDetector {
 
   private parseAppleScriptOutput(output: string, bundleId: string): WindowInfo[] {
     try {
-      // This is a simplified parser - AppleScript output format can vary
-      // In a production system, you'd want more robust parsing
       const windows: WindowInfo[] = [];
+      const trimmedOutput = output.trim();
       
-      // For now, return a placeholder implementation
-      // In reality, you'd need to parse the specific AppleScript output format
-      log(`[WindowDetector] Parsing AppleScript output for ${bundleId}: ${output.substring(0, 100)}...`);
+      log(`[WindowDetector] Parsing AppleScript output for ${bundleId}: ${trimmedOutput.substring(0, 200)}...`);
       
+      // Handle empty output or "missing value"
+      if (!trimmedOutput || trimmedOutput === 'missing value' || trimmedOutput === '{}') {
+        log(`[WindowDetector] No windows found for ${bundleId}`);
+        return windows;
+      }
+      
+      // AppleScript returns a list format like:
+      // {{title:"Window 1", x:100, y:200, width:800, height:600, visible:true}, {title:"Window 2", ...}}
+      // We need to parse this format
+      
+      // Split on record boundaries - for AppleScript list format like {{...}, {...}}
+      // If it's a single record, it won't have outer list braces
+      let windowRecords: string[];
+      
+      if (trimmedOutput.startsWith('{{') && trimmedOutput.endsWith('}}')) {
+        // Multiple records in list format: {{record1}, {record2}, ...}
+        const cleanOutput = trimmedOutput.slice(1, -1); // Remove outer {}
+        windowRecords = this.splitAppleScriptRecords(cleanOutput);
+      } else if (trimmedOutput.startsWith('{') && trimmedOutput.endsWith('}')) {
+        // Single record: {record}
+        windowRecords = [trimmedOutput];
+      } else {
+        // Unexpected format
+        log(`[WindowDetector] Unexpected AppleScript output format: ${trimmedOutput.substring(0, 100)}...`);
+        return windows;
+      }
+      
+      for (let i = 0; i < windowRecords.length; i++) {
+        const record = windowRecords[i].trim();
+        if (!record) continue;
+        
+        try {
+          const windowInfo = this.parseWindowRecord(record, bundleId, i);
+          if (windowInfo) {
+            windows.push(windowInfo);
+          }
+        } catch (error) {
+          log(`[WindowDetector] Error parsing window record ${i}: ${error}`);
+        }
+      }
+      
+      log(`[WindowDetector] Successfully parsed ${windows.length} windows for ${bundleId}`);
       return windows;
     } catch (error) {
       log(`[WindowDetector] Error parsing AppleScript output: ${error}`);
       return [];
     }
+  }
+  
+  private splitAppleScriptRecords(output: string): string[] {
+    const records: string[] = [];
+    let currentRecord = '';
+    let braceDepth = 0;
+    let inString = false;
+    let i = 0;
+    
+    while (i < output.length) {
+      const char = output[i];
+      
+      if (char === '"' && (i === 0 || output[i - 1] !== '\\')) {
+        inString = !inString;
+      }
+      
+      if (!inString) {
+        if (char === '{') {
+          braceDepth++;
+        } else if (char === '}') {
+          braceDepth--;
+        }
+      }
+      
+      currentRecord += char;
+      
+      // If we're at depth 0 and hit a comma, or at the end, we have a complete record
+      if (!inString && braceDepth === 0 && (char === ',' || i === output.length - 1)) {
+        const cleanRecord = currentRecord.replace(/,$/, '').trim();
+        if (cleanRecord) {
+          records.push(cleanRecord);
+        }
+        currentRecord = '';
+      }
+      
+      i++;
+    }
+    
+    return records;
+  }
+  
+  private parseWindowRecord(record: string, bundleId: string, windowId: number): WindowInfo | null {
+    try {
+      // Remove outer braces if present
+      const cleanRecord = record.replace(/^{|}$/g, '').trim();
+      
+      // Parse key-value pairs
+      const properties: Record<string, any> = {};
+      const pairs = this.extractKeyValuePairs(cleanRecord);
+      
+      for (const [key, value] of pairs) {
+        properties[key] = value;
+      }
+      
+      // Extract required properties
+      const title = properties.title || '';
+      const x = parseInt(properties.x) || 0;
+      const y = parseInt(properties.y) || 0;
+      const width = parseInt(properties.width) || 0;
+      const height = parseInt(properties.height) || 0;
+      const visible = properties.visible === 'true' || properties.visible === true;
+      
+      // Skip invalid windows
+      if (width <= 0 || height <= 0) {
+        log(`[WindowDetector] Skipping invalid window: ${title} (${width}x${height})`);
+        return null;
+      }
+      
+      const windowInfo: WindowInfo = {
+        windowId,
+        bundleId,
+        title,
+        x,
+        y,
+        width,
+        height,
+        isVisible: visible,
+        processName: bundleId.split('.').pop() || 'unknown'
+      };
+      
+      log(`[WindowDetector] Parsed window: "${title}" at (${x},${y}) size ${width}x${height} visible=${visible}`);
+      return windowInfo;
+    } catch (error) {
+      log(`[WindowDetector] Error parsing window record: ${error}`);
+      return null;
+    }
+  }
+  
+  private extractKeyValuePairs(record: string): Array<[string, string]> {
+    const pairs: Array<[string, string]> = [];
+    const regex = /(\w+):\s*([^,}]+)(?=,|\s*}|$)/g;
+    let match;
+    
+    while ((match = regex.exec(record)) !== null) {
+      const key = match[1].trim();
+      let value = match[2].trim();
+      
+      // Remove quotes from string values
+      if (value.startsWith('"') && value.endsWith('"')) {
+        value = value.slice(1, -1);
+      }
+      
+      pairs.push([key, value]);
+    }
+    
+    return pairs;
   }
 
   /**

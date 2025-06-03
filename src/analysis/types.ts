@@ -49,6 +49,11 @@ export interface AnalysisResult {
     warnings?: string[];
     currentFile?: string;
     userActions?: string[];
+    llmError?: {
+      provider: string;
+      error: string;
+      timestamp: string;
+    };
     enhancedDetails?: {
       context: {
         appName?: string;

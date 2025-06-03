@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import sharp from 'sharp';
 
 export interface ExtractedFrame {
@@ -13,7 +14,7 @@ export class FrameExtractor {
   private readonly tempDir: string;
 
   constructor() {
-    this.tempDir = path.join(process.env.HOME || '', '.mcp-desktop-dvr', 'frames');
+    this.tempDir = path.join(process.env.HOME || os.homedir(), '.mcp-desktop-dvr', 'frames');
     this.ensureTempDir();
   }
 
@@ -30,19 +31,24 @@ export class FrameExtractor {
     maxFrames?: number; // Maximum number of frames to extract
   } = {}): Promise<ExtractedFrame[]> {
     const { interval = 1, maxFrames = 30 } = options;
+    
+    // Ensure directory exists before extraction
+    await this.ensureTempDir();
+    
     const outputPattern = path.join(this.tempDir, `frame_%d.png`);
     
     // Clean up old frames
     await this.cleanupFrames();
     
     return new Promise((resolve, reject) => {
-      const ffmpeg = spawn('ffmpeg', [
+      const args = [
         '-i', videoPath,
         '-vf', `fps=1/${interval}`,
         '-frames:v', maxFrames.toString(),
         '-f', 'image2',
         outputPattern
-      ]);
+      ];
+      const ffmpeg = spawn('ffmpeg', args);
 
       let stderr = '';
       ffmpeg.stderr.on('data', (data) => {
@@ -75,6 +81,9 @@ export class FrameExtractor {
   }
 
   async extractSingleFrame(videoPath: string, timestamp: number): Promise<string> {
+    // Ensure directory exists before extraction
+    await this.ensureTempDir();
+    
     const outputPath = path.join(this.tempDir, `frame_single_${Date.now()}.png`);
     
     return new Promise((resolve, reject) => {

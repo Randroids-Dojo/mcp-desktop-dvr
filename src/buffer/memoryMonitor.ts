@@ -7,6 +7,8 @@ export interface MemoryStats {
   external: number;
   rss: number;
   totalMB: number;
+  heapUsedMB: number;
+  heapPercent: number;
   percentUsed: number;
 }
 
@@ -78,6 +80,8 @@ export class MemoryMonitor extends EventEmitter {
     const memUsage = process.memoryUsage();
     const totalBytes = memUsage.heapUsed + memUsage.external;
     const totalMB = totalBytes / (1024 * 1024);
+    const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
+    const heapPercent = (heapUsedMB / (memUsage.heapTotal / (1024 * 1024))) * 100;
     const percentUsed = (totalMB / this.thresholds.maxMB) * 100;
     
     return {
@@ -86,6 +90,8 @@ export class MemoryMonitor extends EventEmitter {
       external: memUsage.external,
       rss: memUsage.rss,
       totalMB,
+      heapUsedMB,
+      heapPercent,
       percentUsed,
     };
   }

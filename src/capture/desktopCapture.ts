@@ -59,11 +59,44 @@ export class DesktopCapture extends EventEmitter {
     this.circularBuffer = useOptimizedBuffer 
       ? new OptimizedCircularBuffer(bufferPath)
       : new CircularBuffer(bufferPath);
+    
+    // Clean up any dangling aperture processes on startup
+    this.cleanupDanglingProcesses();
   }
 
   private ensureOutputDirectory(): void {
     if (!existsSync(this.outputDir)) {
       mkdirSync(this.outputDir, { recursive: true });
+    }
+  }
+
+  private async cleanupDanglingProcesses(): Promise<void> {
+    try {
+      log('[DesktopCapture] Checking for dangling aperture processes...');
+      
+      // Check for aperture processes
+      const stdout = execSync('ps aux | grep -i aperture | grep -v grep || echo ""', 
+        { encoding: 'utf8', maxBuffer: 1024 * 1024 });
+      
+      if (stdout.trim()) {
+        log('[DesktopCapture] Found dangling aperture processes, cleaning up...');
+        
+        // Kill aperture recording processes
+        try {
+          execSync('pkill -f "aperture.*record" 2>/dev/null || true');
+          execSync('pkill -f "aperture.*events" 2>/dev/null || true');
+          log('[DesktopCapture] Successfully cleaned up dangling aperture processes');
+        } catch (error) {
+          log(`[DesktopCapture] Error during cleanup: ${error}`);
+        }
+        
+        // Wait a moment for processes to terminate
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        log('[DesktopCapture] No dangling aperture processes found');
+      }
+    } catch (error) {
+      log(`[DesktopCapture] Error checking for dangling processes: ${error}`);
     }
   }
 
@@ -383,12 +416,43 @@ export class DesktopCapture extends EventEmitter {
   }
 
   async shutdown(): Promise<void> {
-    if (this.isRecording) {
-      await this.stopCapture();
-    }
+    log('[DesktopCapture] Starting graceful shutdown...');
     
-    if (this.circularBuffer instanceof OptimizedCircularBuffer) {
-      await this.circularBuffer.shutdown();
+    try {
+      // Clear segment rotation interval
+      if (this.segmentInterval) {
+        clearInterval(this.segmentInterval);
+        this.segmentInterval = undefined;
+      }
+      
+      // Stop recording if active
+      if (this.isRecording) {
+        log('[DesktopCapture] Stopping active recording...');
+        await this.stopCapture();
+      }
+      
+      // Shutdown circular buffer
+      if (this.circularBuffer instanceof OptimizedCircularBuffer) {
+        log('[DesktopCapture] Shutting down circular buffer...');
+        await this.circularBuffer.shutdown();
+      }
+      
+      // Final cleanup of any aperture processes
+      log('[DesktopCapture] Final cleanup of aperture processes...');
+      await this.cleanupDanglingProcesses();
+      
+      log('[DesktopCapture] Shutdown completed successfully');
+    } catch (error) {
+      log(`[DesktopCapture] Error during shutdown: ${error}`);
+      
+      // Force cleanup even if other steps failed
+      try {
+        execSync('pkill -f "aperture.*record" 2>/dev/null || true');
+        execSync('pkill -f "aperture.*events" 2>/dev/null || true');
+        log('[DesktopCapture] Force cleanup completed');
+      } catch (forceError) {
+        log(`[DesktopCapture] Force cleanup failed: ${forceError}`);
+      }
     }
   }
 }

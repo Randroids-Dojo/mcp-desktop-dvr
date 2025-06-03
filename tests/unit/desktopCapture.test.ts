@@ -118,8 +118,7 @@ describe('DesktopCapture', () => {
 
   describe('capture options validation', () => {
     it('should handle full screen capture options', async () => {
-      const { recorder } = require('aperture');
-      recorder.startRecording.mockResolvedValue(undefined);
+      mockedRecorder.startRecording.mockResolvedValue(undefined);
 
       await expect(
         desktopCapture.startCapture({
@@ -128,7 +127,7 @@ describe('DesktopCapture', () => {
         })
       ).resolves.not.toThrow();
 
-      expect(recorder.startRecording).toHaveBeenCalledWith(
+      expect(mockedRecorder.startRecording).toHaveBeenCalledWith(
         expect.objectContaining({
           fps: 30,
           videoCodec: 'h264',
@@ -139,8 +138,8 @@ describe('DesktopCapture', () => {
     });
 
     it('should handle window-specific capture options', async () => {
-      const { recorder } = require('aperture');
-      recorder.startRecording.mockResolvedValue(undefined);
+      // Using imported mockedRecorder
+      mockedRecorder.startRecording.mockResolvedValue(undefined);
 
       const mockWindow: WindowInfo = {
         windowId: 123,
@@ -173,7 +172,7 @@ describe('DesktopCapture', () => {
         })
       ).resolves.not.toThrow();
 
-      expect(recorder.startRecording).toHaveBeenCalledWith(
+      expect(mockedRecorder.startRecording).toHaveBeenCalledWith(
         expect.objectContaining({
           fps: 30,
           videoCodec: 'h264',
@@ -190,8 +189,8 @@ describe('DesktopCapture', () => {
     });
 
     it('should fallback to full screen when window not found', async () => {
-      const { recorder } = require('aperture');
-      recorder.startRecording.mockResolvedValue(undefined);
+      // Using imported mockedRecorder
+      mockedRecorder.startRecording.mockResolvedValue(undefined);
 
       jest.spyOn(desktopCapture as any, 'windowDetector').mockReturnValue({
         findMainWindowByBundleId: jest.fn().mockResolvedValue(null),
@@ -205,7 +204,7 @@ describe('DesktopCapture', () => {
         })
       ).resolves.not.toThrow();
 
-      expect(recorder.startRecording).toHaveBeenCalledWith(
+      expect(mockedRecorder.startRecording).toHaveBeenCalledWith(
         expect.objectContaining({
           fps: 30,
           videoCodec: 'h264',
@@ -214,7 +213,7 @@ describe('DesktopCapture', () => {
         })
       );
       // Should not have cropArea when window not found
-      expect(recorder.startRecording).not.toHaveBeenCalledWith(
+      expect(mockedRecorder.startRecording).not.toHaveBeenCalledWith(
         expect.objectContaining({
           cropArea: expect.anything(),
         })
@@ -224,8 +223,8 @@ describe('DesktopCapture', () => {
 
   describe('capture lifecycle', () => {
     it('should prevent multiple simultaneous captures', async () => {
-      const { recorder } = require('aperture');
-      recorder.startRecording.mockResolvedValue(undefined);
+      // Using imported mockedRecorder
+      mockedRecorder.startRecording.mockResolvedValue(undefined);
 
       // Start first capture
       await desktopCapture.startCapture({ fps: 30, quality: 70 });
@@ -237,10 +236,10 @@ describe('DesktopCapture', () => {
     });
 
     it('should handle aperture timeout gracefully', async () => {
-      const { recorder } = require('aperture');
+      // Using imported mockedRecorder
       const timeoutError = new Error('Timeout');
       (timeoutError as any).code = 'RECORDER_TIMEOUT';
-      recorder.startRecording.mockRejectedValue(timeoutError);
+      mockedRecorder.startRecording.mockRejectedValue(timeoutError);
 
       // Mock checkApertureRunning to return true
       jest.spyOn(desktopCapture as any, 'checkApertureRunning').mockReturnValue(true);
@@ -251,9 +250,9 @@ describe('DesktopCapture', () => {
     });
 
     it('should throw on other aperture errors', async () => {
-      const { recorder } = require('aperture');
+      // Using imported mockedRecorder
       const otherError = new Error('Other error');
-      recorder.startRecording.mockRejectedValue(otherError);
+      mockedRecorder.startRecording.mockRejectedValue(otherError);
 
       await expect(
         desktopCapture.startCapture({ fps: 30, quality: 70 })
@@ -263,8 +262,8 @@ describe('DesktopCapture', () => {
 
   describe('updateCaptureSettings', () => {
     it('should update capture settings when recording', async () => {
-      const { recorder } = require('aperture');
-      recorder.startRecording.mockResolvedValue(undefined);
+      // Using imported mockedRecorder
+      mockedRecorder.startRecording.mockResolvedValue(undefined);
 
       // Start capture first
       await desktopCapture.startCapture({ fps: 30, quality: 70 });
@@ -302,8 +301,8 @@ describe('DesktopCapture', () => {
     });
 
     it('should provide status with window information when recording', async () => {
-      const { recorder } = require('aperture');
-      recorder.startRecording.mockResolvedValue(undefined);
+      // Using imported mockedRecorder
+      mockedRecorder.startRecording.mockResolvedValue(undefined);
 
       const mockWindow: WindowInfo = {
         windowId: 123,
@@ -348,29 +347,27 @@ describe('DesktopCapture', () => {
     });
 
     it('should stop recording during shutdown', async () => {
-      const { recorder } = require('aperture');
-      recorder.startRecording.mockResolvedValue(undefined);
-      recorder.stopRecording.mockResolvedValue('output.mp4');
+      // Using imported mockedRecorder
+      mockedRecorder.startRecording.mockResolvedValue(undefined);
+      mockedRecorder.stopRecording.mockResolvedValue('output.mp4');
 
       await desktopCapture.startCapture({ fps: 30, quality: 70 });
       await expect(desktopCapture.shutdown()).resolves.not.toThrow();
 
-      expect(recorder.stopRecording).toHaveBeenCalled();
+      expect(mockedRecorder.stopRecording).toHaveBeenCalled();
     });
   });
 
   describe('aperture process detection', () => {
     it('should detect running aperture process', () => {
-      const { execSync } = require('child_process');
-      execSync.mockReturnValue('aperture record process running');
+      mockedExecSync.mockReturnValue('aperture record process running' as any);
 
       const isRunning = (desktopCapture as any).checkApertureRunning();
       expect(typeof isRunning).toBe('boolean');
     });
 
     it('should handle execSync errors', () => {
-      const { execSync } = require('child_process');
-      execSync.mockImplementation(() => {
+      mockedExecSync.mockImplementation(() => {
         throw new Error('Command failed');
       });
 

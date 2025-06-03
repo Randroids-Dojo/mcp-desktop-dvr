@@ -143,6 +143,14 @@ export class DesktopDVRServer {
             },
           },
         },
+        {
+          name: 'cleanup-recording-processes',
+          description: 'Emergency cleanup of any dangling recording processes (use if recording gets stuck)',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+          },
+        },
       ],
     }));
 
@@ -171,6 +179,8 @@ export class DesktopDVRServer {
         return await this.handleConfigureCapture(toolArgs);
       case 'list-available-windows':
         return await this.handleListAvailableWindows(toolArgs);
+      case 'cleanup-recording-processes':
+        return await this.handleCleanupRecordingProcesses();
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -207,6 +217,11 @@ export class DesktopDVRServer {
         analysisType
       });
       
+      // Get file details
+      const fs = await import('fs').then(m => m.promises);
+      const videoStats = await fs.stat(videoPath);
+      const videoSizeMB = (videoStats.size / 1024 / 1024).toFixed(2);
+      
       return {
         content: [
           {
@@ -218,6 +233,42 @@ export class DesktopDVRServer {
               duration: analysisResult.duration,
               analysisType: analysisResult.analysisType,
               timestamp: analysisResult.timestamp,
+              videoInfo: {
+                filePath: videoPath,
+                sizeBytes: videoStats.size,
+                sizeMB: videoSizeMB,
+                format: 'MP4 (H.264)',
+                createdAt: videoStats.birthtime.toISOString()
+              },
+              analysisDetails: {
+                method: analysisResult.results.enhancedDetails?.llmAnalysis ? 'LLM Analysis (OpenAI)' : 'OCR Fallback',
+                llmProvider: analysisResult.results.enhancedDetails?.llmAnalysis?.provider || null,
+                confidence: analysisResult.results.enhancedDetails?.llmAnalysis?.confidence || null,
+                fallbackReason: analysisResult.results.llmError ? {
+                  error: analysisResult.results.llmError.error,
+                  provider: analysisResult.results.llmError.provider,
+                  timestamp: analysisResult.results.llmError.timestamp,
+                  explanation: 'LLM analysis failed, automatically fell back to OCR-based analysis'
+                } : null,
+                preprocessing: analysisResult.results.enhancedDetails?.llmAnalysis ? {
+                  videoCompression: videoStats.size > 20 * 1024 * 1024 ? 'Applied (video > 20MB)' : 'Not needed',
+                  maxVideoSize: '20MB',
+                  targetBitrate: videoStats.size > 20 * 1024 * 1024 ? 'Calculated based on duration' : 'Original',
+                  resolution: videoStats.size > 20 * 1024 * 1024 ? 'Scaled to max 1280px width' : 'Original'
+                } : {
+                  frameExtraction: 'Every 0.5-1 seconds',
+                  maxFrames: `${Math.min(duration * 2, 60)} frames`,
+                  ocrPreprocessing: 'Grayscale, normalize, resize to 1920x1080 max'
+                }
+              },
+              apiCall: analysisResult.results.enhancedDetails?.llmAnalysis ? {
+                provider: analysisResult.results.enhancedDetails.llmAnalysis.provider,
+                model: 'gpt-4o',
+                maxTokens: 1000,
+                temperature: 0.3,
+                inputFormat: 'Base64-encoded MP4 video',
+                promptType: 'Structured analysis with JSON response'
+              } : null,
               results: {
                 summary: analysisResult.results.summary,
                 errors: analysisResult.results.errors || [],
@@ -379,6 +430,66 @@ export class DesktopDVRServer {
             text: JSON.stringify({
               status: 'error',
               message: error instanceof Error ? error.message : 'Failed to update capture settings',
+            }),
+          },
+        ],
+      };
+    }
+  }
+
+  private async handleCleanupRecordingProcesses(): Promise<any> {
+    try {
+      const { execSync } = await import('child_process');
+      
+      // Check for existing processes
+      let processCount = 0;
+      try {
+        const stdout = execSync('ps aux | grep -i aperture | grep -v grep || echo ""', 
+          { encoding: 'utf8', maxBuffer: 1024 * 1024 });
+        
+        if (stdout.trim()) {
+          processCount = stdout.trim().split('\n').length;
+          
+          // Kill aperture processes
+          execSync('pkill -f "aperture.*record" 2>/dev/null || true');
+          execSync('pkill -f "aperture.*events" 2>/dev/null || true');
+          
+          // Wait for cleanup
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      } catch (error) {
+        // Continue with cleanup attempt even if detection failed
+      }
+      
+      // Reset capture state
+      (this.desktopCapture as any).isRecording = false;
+      (this.desktopCapture as any).currentSegmentPath = undefined;
+      if ((this.desktopCapture as any).segmentInterval) {
+        clearInterval((this.desktopCapture as any).segmentInterval);
+        (this.desktopCapture as any).segmentInterval = undefined;
+      }
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              status: 'success',
+              message: `Emergency cleanup completed. Cleaned up ${processCount} aperture processes and reset capture state.`,
+              processesFound: processCount,
+              captureStateReset: true,
+            }),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              status: 'error',
+              message: error instanceof Error ? error.message : 'Failed to cleanup recording processes',
             }),
           },
         ],
