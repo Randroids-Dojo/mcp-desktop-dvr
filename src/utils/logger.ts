@@ -21,3 +21,9 @@ export function log(message: string) {
     // Ignore errors
   }
 }
+
+export const logger = {
+  info: (message: string, ...args: unknown[]) => log(`[INFO] ${message} ${args.length > 0 ? JSON.stringify(args) : ''}`),
+  warn: (message: string, ...args: unknown[]) => log(`[WARN] ${message} ${args.length > 0 ? JSON.stringify(args) : ''}`),
+  error: (message: string, ...args: unknown[]) => log(`[ERROR] ${message} ${args.length > 0 ? JSON.stringify(args) : ''}`)
+};

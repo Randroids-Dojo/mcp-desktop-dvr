@@ -66,6 +66,11 @@ export interface AnalysisResult {
         nearbyText: string;
         timestamp: number;
       }>;
+      llmAnalysis?: {
+        provider: string;
+        description: string;
+        confidence: number;
+      };
     };
   };
 }

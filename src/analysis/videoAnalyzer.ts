@@ -6,6 +6,8 @@ import { FrameExtractor, ExtractedFrame } from './frameExtractor.js';
 import { VisualAnalyzer } from './visualAnalyzer.js';
 import { EnhancedVisualAnalyzer } from './enhancedVisualAnalyzer.js';
 import { FocusedAnalyzer } from './focusedAnalyzer.js';
+import { LLMAnalyzerFactory } from './llm/index.js';
+import { logger } from '../utils/logger.js';
 
 export class VideoAnalyzer {
   private readonly tempDir = path.join(process.env.HOME || '', '.mcp-desktop-dvr', 'analysis');
@@ -13,6 +15,7 @@ export class VideoAnalyzer {
   private visualAnalyzer: VisualAnalyzer;
   private enhancedAnalyzer: EnhancedVisualAnalyzer;
   private focusedAnalyzer: FocusedAnalyzer;
+  private llmFactory: LLMAnalyzerFactory;
   private useEnhancedAnalysis = true;
   private useFocusedAnalysis = true;
 
@@ -22,6 +25,7 @@ export class VideoAnalyzer {
     this.visualAnalyzer = new VisualAnalyzer();
     this.enhancedAnalyzer = new EnhancedVisualAnalyzer();
     this.focusedAnalyzer = new FocusedAnalyzer();
+    this.llmFactory = LLMAnalyzerFactory.getInstance();
   }
 
   private async ensureTempDir(): Promise<void> {
@@ -35,6 +39,52 @@ export class VideoAnalyzer {
   async analyze(videoPath: string, options: AnalysisOptions): Promise<AnalysisResult> {
     try {
       // Starting visual analysis - logged to debug file
+      
+      // Try LLM analysis first if available
+      const llmProvider = this.llmFactory.getActiveProvider();
+      if (llmProvider && llmProvider.isAvailable() && options.analysisType === 'full_analysis') {
+        try {
+          logger.info(`Using ${llmProvider.name} for video analysis`);
+          const llmResult = await llmProvider.analyzeVideo(videoPath, options.duration);
+          
+          // Convert OpenAI result to our format
+          return {
+            videoPath,
+            duration: options.duration,
+            analysisType: options.analysisType,
+            timestamp: new Date().toISOString(),
+            results: {
+              summary: llmResult.summary,
+              errors: llmResult.errors,
+              warnings: llmResult.warnings,
+              userActions: llmResult.keyActions,
+              currentFile: llmResult.detectedApplications.find(app => app.includes('.')) || undefined,
+              keyFrames: llmResult.keyActions.map((action, idx) => ({
+                timestamp: (idx / llmResult.keyActions.length) * options.duration * 1000,
+                description: action
+              })),
+              enhancedDetails: {
+                context: {
+                  appName: llmResult.detectedApplications.join(', '),
+                  windowTitle: llmResult.detectedApplications[0],
+                  isDarkTheme: false,
+                  primaryColors: []
+                },
+                regions: [],
+                clickContexts: [],
+                llmAnalysis: {
+                  provider: llmProvider.name,
+                  description: llmResult.description,
+                  confidence: llmResult.confidence
+                }
+              }
+            }
+          };
+        } catch (error) {
+          logger.warn(`${llmProvider.name} analysis failed, falling back to OCR analysis:`, error);
+          // Continue with fallback analysis
+        }
+      }
       
       // Initialize analyzers
       if (this.useFocusedAnalysis) {
