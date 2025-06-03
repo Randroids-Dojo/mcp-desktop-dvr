@@ -1,20 +1,29 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { WindowDetector } from '../../src/capture/windowDetector.js';
 
-// Mock child_process
-jest.mock('child_process', () => ({
-  exec: jest.fn(),
+// Create a mock exec async function
+const mockExecAsync = jest.fn();
+
+// Mock the entire util module with promisify returning our mock
+jest.unstable_mockModule('util', () => ({
+  promisify: () => mockExecAsync
 }));
 
-import { exec } from 'child_process';
-const mockedExec = exec as jest.MockedFunction<typeof exec>;
+// Mock child_process - this needs to be done even though we're using promisify
+jest.unstable_mockModule('child_process', () => ({
+  exec: jest.fn()
+}));
 
 describe('WindowDetector', () => {
   let windowDetector: WindowDetector;
 
   beforeEach(() => {
-    windowDetector = new WindowDetector();
     jest.clearAllMocks();
+    // Import dynamically after mocks are set up
+    return import('../../src/capture/windowDetector.js').then(module => {
+      const WindowDetectorClass = module.WindowDetector;
+      windowDetector = new WindowDetectorClass();
+    });
   });
 
   describe('getCommonBundleIds', () => {
@@ -108,40 +117,22 @@ describe('WindowDetector', () => {
   describe('isApplicationRunning', () => {
     it('should return true when application is running', async () => {
       // Mock successful AppleScript execution
-      const mockExecPromise = Promise.resolve({
-        stdout: 'true',
-        stderr: '',
-      });
-      
-      (mockedExec as any).mockImplementation((command: string, callback: any) => {
-        setTimeout(() => callback(null, { stdout: 'true', stderr: '' }), 0);
-        return mockExecPromise as any;
-      });
+      mockExecAsync.mockResolvedValue({ stdout: 'true\n', stderr: '' });
 
       const isRunning = await windowDetector.isApplicationRunning('com.test.app');
+      expect(mockExecAsync).toHaveBeenCalled();
       expect(isRunning).toBe(true);
     });
 
     it('should return false when application is not running', async () => {
-      const mockExecPromise = Promise.resolve({
-        stdout: 'false',
-        stderr: '',
-      });
-      
-      (mockedExec as any).mockImplementation((command: string, callback: any) => {
-        setTimeout(() => callback(null, { stdout: 'false', stderr: '' }), 0);
-        return mockExecPromise as any;
-      });
+      mockExecAsync.mockResolvedValue({ stdout: 'false\n', stderr: '' });
 
       const isRunning = await windowDetector.isApplicationRunning('com.nonexistent.app');
       expect(isRunning).toBe(false);
     });
 
     it('should handle AppleScript errors gracefully', async () => {
-      (mockedExec as any).mockImplementation((command: string, callback: any) => {
-        setTimeout(() => callback(new Error('AppleScript error'), null), 0);
-        return Promise.reject(new Error('AppleScript error')) as any;
-      });
+      mockExecAsync.mockRejectedValue(new Error('AppleScript error'));
 
       const isRunning = await windowDetector.isApplicationRunning('com.test.app');
       expect(isRunning).toBe(false);
@@ -151,11 +142,7 @@ describe('WindowDetector', () => {
   describe('findWindowsByBundleId', () => {
     it('should handle successful window discovery', async () => {
       const mockAppleScriptOutput = `{title:"Test Window", x:100, y:200, width:800, height:600, visible:true}`;
-      
-      (mockedExec as any).mockImplementation((command: string, callback: any) => {
-        setTimeout(() => callback(null, { stdout: mockAppleScriptOutput, stderr: '' }), 0);
-        return Promise.resolve({ stdout: mockAppleScriptOutput, stderr: '' }) as any;
-      });
+      mockExecAsync.mockResolvedValue({ stdout: mockAppleScriptOutput, stderr: '' });
 
       const windows = await windowDetector.findWindowsByBundleId('com.test.app');
       
@@ -165,10 +152,7 @@ describe('WindowDetector', () => {
     });
 
     it('should handle errors in window discovery', async () => {
-      (mockedExec as any).mockImplementation((command: string, callback: any) => {
-        setTimeout(() => callback(new Error('Failed to run AppleScript'), null), 0);
-        return Promise.reject(new Error('Failed to run AppleScript')) as any;
-      });
+      mockExecAsync.mockRejectedValue(new Error('Failed to run AppleScript'));
 
       const windows = await windowDetector.findWindowsByBundleId('com.test.app');
       expect(windows).toEqual([]);
@@ -267,21 +251,14 @@ describe('WindowDetector', () => {
   describe('findWindowsUsingNativeTools', () => {
     it('should handle process discovery', async () => {
       const mockProcessOutput = `user  1234  0.0  0.1  123456  7890 ??  S  10:00AM   0:01.23 /Applications/TestApp.app/Contents/MacOS/TestApp`;
-      
-      (mockedExec as any).mockImplementation((command: string, callback: any) => {
-        setTimeout(() => callback(null, { stdout: mockProcessOutput, stderr: '' }), 0);
-        return Promise.resolve({ stdout: mockProcessOutput, stderr: '' }) as any;
-      });
+      mockExecAsync.mockResolvedValue({ stdout: mockProcessOutput, stderr: '' });
 
       const windows = await windowDetector.findWindowsUsingNativeTools('com.test.app');
       expect(Array.isArray(windows)).toBe(true);
     });
 
     it('should handle no running processes', async () => {
-      (mockedExec as any).mockImplementation((command: string, callback: any) => {
-        setTimeout(() => callback(null, { stdout: '', stderr: '' }), 0);
-        return Promise.resolve({ stdout: '', stderr: '' }) as any;
-      });
+      mockExecAsync.mockResolvedValue({ stdout: '', stderr: '' });
 
       const windows = await windowDetector.findWindowsUsingNativeTools('com.nonexistent.app');
       expect(windows).toEqual([]);
