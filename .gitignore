@@ -42,3 +42,7 @@ temp/
 captures/
 *.mp4
 *.mov
+
+# Tesseract language data (auto-downloaded)
+*.traineddata
+eng.traineddata

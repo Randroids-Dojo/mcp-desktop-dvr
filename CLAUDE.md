@@ -124,7 +124,7 @@ Add to Claude Desktop configuration:
       "command": "node",
       "args": ["path/to/mcp-desktop-dvr/dist/index.js"],
       "env": {
-        "ANALYZER_PREFERENCE": "tarsier"
+        "ANALYZER_PREFERENCE": "auto"
       }
     }
   }
@@ -147,15 +147,7 @@ The MCP server supports multiple video analyzers with configurable preferences:
 
 **Example Configurations:**
 
-1. **Force Tarsier even with OpenAI key:**
-```json
-"env": {
-  "OPENAI_API_KEY": "sk-...",
-  "ANALYZER_PREFERENCE": "tarsier"
-}
-```
-
-2. **Auto mode (OpenAI → Tarsier → OCR):**
+1. **Auto mode (OpenAI → Tarsier → OCR) - RECOMMENDED:**
 ```json
 "env": {
   "OPENAI_API_KEY": "sk-...",
@@ -163,9 +155,18 @@ The MCP server supports multiple video analyzers with configurable preferences:
 }
 ```
 
-3. **Tarsier only (no fallback):**
+2. **Force OpenAI only (requires API key):**
 ```json
 "env": {
+  "OPENAI_API_KEY": "sk-...",
+  "ANALYZER_PREFERENCE": "openai"
+}
+```
+
+3. **Force Tarsier even with OpenAI key:**
+```json
+"env": {
+  "OPENAI_API_KEY": "sk-...",
   "ANALYZER_PREFERENCE": "tarsier"
 }
 ```
@@ -204,14 +205,28 @@ The MCP server is fully functional with:
 - Proper error handling and logging
 
 ### Visual Analysis Details
-The `analyze-desktop-now` tool now supports **two analysis methods**:
+The `analyze-desktop-now` tool now supports **three analysis methods**:
 
-#### 🤖 **Tarsier2-7B AI Vision Analysis** (Primary Method)
-- **Uses Tarsier2-Recap-7B** for advanced video understanding
-- **Direct visual analysis** of UI elements, applications, and user interactions
-- **No OCR limitations** - can analyze any visual content including games, graphics, and modern UIs
-- **Excellent for complex interfaces** like game engines, visual editors, and multimedia applications
-- **Fast processing** with M2 Metal Performance Shaders acceleration
+#### 🌐 **OpenAI GPT-4o Vision Analysis** (Primary Method with API key)
+- **Uses GPT-4o** via the Responses API for advanced video understanding
+- **Converts video to GIF** for optimal API compatibility
+- **Comprehensive analysis** of UI elements, applications, and user interactions
+- **Excellent accuracy** for all types of interfaces and content
+- **Cloud-based processing** with fast response times
+
+**What OpenAI excels at:**
+- **Comprehensive understanding**: Full context awareness of what's happening
+- **Error detection**: Accurately identifies issues and problems
+- **User workflow analysis**: Understands complex multi-step processes
+- **Natural language descriptions**: Clear, detailed explanations
+- **High confidence results**: Reliable analysis with confidence scores
+
+#### 🤖 **Tarsier2-7B AI Vision Analysis** (Local Fallback)
+- **Uses Tarsier2-Recap-7B** for local video understanding
+- **Direct visual analysis** without requiring API keys
+- **No OCR limitations** - can analyze any visual content
+- **Fast local processing** with M2 Metal Performance Shaders acceleration
+- **Privacy-focused** - all processing happens locally
 
 **What Tarsier excels at:**
 - **Application identification**: Accurately detects software being used
@@ -219,33 +234,35 @@ The `analyze-desktop-now` tool now supports **two analysis methods**:
 - **User action tracking**: Understands clicks, selections, and UI interactions
 - **File context**: Determines which files are being edited or viewed
 - **Visual UI analysis**: Describes interface elements, themes, and layouts
-- **Game content understanding**: Can analyze game screens and interactions
 
-#### 📝 **OCR Text Analysis** (Fallback Method)
-- **Automatic fallback** when Tarsier is unavailable
+#### 📝 **OCR Text Analysis** (Final Fallback)
+- **Automatic fallback** when AI vision methods are unavailable
 - **Focused on text extraction** for development environments
 - **Good for text-heavy interfaces** like IDEs and terminals
 - **Limited effectiveness** with modern GUIs and graphical content
 
 **Current Status:** 
-✅ **Hybrid analysis system implemented** - Intelligent fallback from AI vision to OCR
+✅ **Hybrid analysis system implemented** - Intelligent fallback from OpenAI → Tarsier → OCR
 
 **Technical Implementation:**
-- **Primary**: Tarsier2-Recap-7B with PyTorch MPS acceleration
-- **Fallback**: Enhanced OCR with Tesseract.js
+- **Primary**: OpenAI GPT-4o via Responses API (when API key available)
+- **Local Fallback**: Tarsier2-Recap-7B with PyTorch MPS acceleration
+- **Final Fallback**: Enhanced OCR with Tesseract.js
+- **Video conversion**: MP4 to GIF for OpenAI compatibility
 - **Frame extraction**: 16 evenly-spaced frames per analysis
-- **Processing time**: ~5-15 seconds for 30-second clips
-- **Device**: Apple M2 with Metal Performance Shaders
+- **Processing time**: ~3-5 seconds (OpenAI), ~5-15 seconds (Tarsier/OCR)
 
 **Dependencies:**
+- `openai`: OpenAI SDK for GPT-4o vision analysis
 - `torch`, `transformers`, `opencv-python`: Tarsier AI analysis
 - `sharp`: High-performance image processing  
 - `tesseract.js`: OCR fallback analysis
-- `ffmpeg`: Frame extraction from video files
+- `ffmpeg`: Frame extraction and GIF conversion
 
 **Analysis quality indicators:**
+- **"OpenAI vision analysis"**: GPT-4o was used successfully
 - **"Advanced AI vision analysis"**: Tarsier was used successfully
 - **"OCR text analysis"**: Fallback method was used
-- **"Hybrid analysis"**: Both methods provided results
+- **"Hybrid analysis"**: Multiple methods provided results
 
 Debug frames are saved to `~/.mcp-desktop-dvr/tarsier-frames/` and `~/.mcp-desktop-dvr/debug-frames/`.
