@@ -6,6 +6,12 @@ export interface LLMVideoAnalysis {
   keyActions: string[];
   summary: string;
   confidence: number;
+  gifFiles?: {
+    allSegments: string[];
+    uploadedFile: string;
+    totalSegments: number;
+    segmentDuration: number;
+  };
 }
 
 export interface LLMProvider {

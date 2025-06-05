@@ -209,7 +209,9 @@ The `analyze-desktop-now` tool now supports **three analysis methods**:
 
 #### 🌐 **OpenAI GPT-4o Vision Analysis** (Primary Method with API key)
 - **Uses GPT-4o** via the Responses API for advanced video understanding
-- **Converts video to GIF** for optimal API compatibility
+- **Creates multiple 10-second GIF segments** from extracted videos for optimal analysis
+- **Automatically segments videos**: 30s video → 3 GIF files (part01.gif, part02.gif, part03.gif)
+- **Uploads first segment to OpenAI** while preserving all segments locally
 - **Comprehensive analysis** of UI elements, applications, and user interactions
 - **Excellent accuracy** for all types of interfaces and content
 - **Cloud-based processing** with fast response times
@@ -248,8 +250,10 @@ The `analyze-desktop-now` tool now supports **three analysis methods**:
 - **Primary**: OpenAI GPT-4o via Responses API (when API key available)
 - **Local Fallback**: Tarsier2-Recap-7B with PyTorch MPS acceleration
 - **Final Fallback**: Enhanced OCR with Tesseract.js
-- **Video conversion**: MP4 to GIF for OpenAI compatibility
-- **Frame extraction**: 16 evenly-spaced frames per analysis
+- **GIF Segmentation**: Automatic 10-second segments with intelligent naming
+- **File Management**: GIF files preserved locally alongside MP4 extracts
+- **Smart Upload**: Only first GIF segment uploaded to OpenAI for analysis
+- **Frame extraction**: 16 evenly-spaced frames per analysis (OCR/Tarsier)
 - **Processing time**: ~3-5 seconds (OpenAI), ~5-15 seconds (Tarsier/OCR)
 
 **Dependencies:**
@@ -266,3 +270,36 @@ The `analyze-desktop-now` tool now supports **three analysis methods**:
 - **"Hybrid analysis"**: Multiple methods provided results
 
 Debug frames are saved to `~/.mcp-desktop-dvr/tarsier-frames/` and `~/.mcp-desktop-dvr/debug-frames/`.
+
+### File Output Structure
+
+When using OpenAI analysis, the system creates multiple files for each extraction:
+
+**For a 30-second video extraction:**
+```
+~/.mcp-desktop-dvr/buffer/extracts/
+├── extract_1234567890_30s.mp4          # Original extracted video
+├── extract_1234567890_30s_part01.gif   # Seconds 0-10
+├── extract_1234567890_30s_part02.gif   # Seconds 10-20
+└── extract_1234567890_30s_part03.gif   # Seconds 20-30
+```
+
+**File naming convention:**
+- MP4: `extract_<timestamp>_<duration>s.mp4`
+- GIFs: `extract_<timestamp>_<duration>s_part<XX>.gif`
+
+**Analysis output includes:**
+```json
+{
+  "apiCall": {
+    "provider": "OpenAI",
+    "inputFormat": "GIF segments (first segment uploaded)",
+    "gifFiles": {
+      "allSegments": ["path/to/part01.gif", "path/to/part02.gif", "path/to/part03.gif"],
+      "uploadedFile": "path/to/part01.gif",
+      "totalSegments": 3,
+      "segmentDuration": 10
+    }
+  }
+}
+```

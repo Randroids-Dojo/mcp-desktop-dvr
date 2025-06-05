@@ -75,6 +75,12 @@ export interface AnalysisResult {
         provider: string;
         description: string;
         confidence: number;
+        gifFiles?: {
+          allSegments: string[];
+          uploadedFile: string;
+          totalSegments: number;
+          segmentDuration: number;
+        };
       };
       tarsierAnalysis?: {
         provider: string;

@@ -101,7 +101,8 @@ export class VideoAnalyzer {
                 llmAnalysis: {
                   provider: llmProvider.name,
                   description: llmResult.description,
-                  confidence: llmResult.confidence
+                  confidence: llmResult.confidence,
+                  gifFiles: llmResult.gifFiles
                 }
               }
             }

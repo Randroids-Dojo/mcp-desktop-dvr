@@ -266,8 +266,9 @@ export class DesktopDVRServer {
                 model: 'gpt-4o',
                 maxTokens: 1000,
                 temperature: 0.3,
-                inputFormat: 'Base64-encoded MP4 video',
-                promptType: 'Structured analysis with JSON response'
+                inputFormat: analysisResult.results.enhancedDetails.llmAnalysis.gifFiles ? 'GIF segments (first segment uploaded)' : 'Base64-encoded MP4 video',
+                promptType: 'Structured analysis with JSON response',
+                gifFiles: analysisResult.results.enhancedDetails.llmAnalysis.gifFiles || null
               } : null,
               results: {
                 summary: analysisResult.results.summary,

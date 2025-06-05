@@ -61,7 +61,9 @@ The `analyze-desktop-now` tool supports multiple analyzers with different streng
 
 ### ☁️ OpenAI GPT-4o Vision (Primary - Cloud)
 - **Most accurate analysis** using GPT-4o via Responses API
-- **Converts video to GIF** for optimal API compatibility
+- **Automatic GIF segmentation** - creates 10-second segments from videos
+- **Smart file management** - preserves all GIF files locally alongside MP4
+- **Efficient uploads** - sends only first segment to OpenAI for analysis
 - **Comprehensive understanding** of complex workflows
 - **Requires OpenAI API key** and internet connection
 - **Fast processing** (~3-5 seconds)

@@ -82,10 +82,22 @@ Update recording settings during capture.
 
 ## Output
 
-- **Recordings**: `~/.mcp-desktop-dvr/recordings/`
-- **Extracted clips**: `~/.mcp-desktop-dvr/extracted/`
+- **Recordings**: `~/.mcp-desktop-dvr/buffer/hot/` and `~/.mcp-desktop-dvr/buffer/cold/`
+- **Extracted clips**: `~/.mcp-desktop-dvr/buffer/extracts/`
+  - MP4 files: `extract_<timestamp>_<duration>s.mp4`
+  - GIF segments: `extract_<timestamp>_<duration>s_part01.gif`, `part02.gif`, etc.
 - **Debug frames**: `~/.mcp-desktop-dvr/debug-frames/`
 - **Logs**: `~/.mcp-desktop-dvr/debug.log`
+
+### File Structure Example
+When analyzing a 30-second clip with OpenAI:
+```
+~/.mcp-desktop-dvr/buffer/extracts/
+├── extract_1701234567890_30s.mp4      # Original video
+├── extract_1701234567890_30s_part01.gif  # Seconds 0-10
+├── extract_1701234567890_30s_part02.gif  # Seconds 10-20
+└── extract_1701234567890_30s_part03.gif  # Seconds 20-30
+```
 
 ## Video Analysis
 
@@ -94,7 +106,9 @@ The `analyze-desktop-now` tool supports multiple analysis methods:
 ### Analysis Options
 - **OpenAI GPT-4o** (Primary): Most accurate analysis via Responses API
   - Requires `OPENAI_API_KEY` environment variable
-  - Converts video to GIF for API compatibility
+  - Automatically creates 10-second GIF segments from extracted videos
+  - Preserves all GIF files locally alongside MP4 extracts
+  - Uploads only first segment to OpenAI for analysis
   - ~3-5 seconds processing time
   
 - **Tarsier2-7B** (Fallback): Local AI analysis
@@ -112,6 +126,36 @@ Set `ANALYZER_PREFERENCE` in your MCP config:
 - `"openai"`: Force OpenAI only
 - `"tarsier"`: Force local AI only
 - `"ocr"`: Force OCR only
+
+### Response Format
+When using OpenAI analysis, the response includes detailed GIF information:
+
+```json
+{
+  "status": "success",
+  "videoPath": "/path/to/extract_1234567890_30s.mp4",
+  "apiCall": {
+    "provider": "OpenAI",
+    "inputFormat": "GIF segments (first segment uploaded)",
+    "gifFiles": {
+      "allSegments": [
+        "/path/to/extract_1234567890_30s_part01.gif",
+        "/path/to/extract_1234567890_30s_part02.gif", 
+        "/path/to/extract_1234567890_30s_part03.gif"
+      ],
+      "uploadedFile": "/path/to/extract_1234567890_30s_part01.gif",
+      "totalSegments": 3,
+      "segmentDuration": 10
+    }
+  },
+  "results": {
+    "summary": "Analysis of desktop activity...",
+    "userActions": ["..."],
+    "errors": [],
+    "warnings": []
+  }
+}
+```
 
 ## Performance
 

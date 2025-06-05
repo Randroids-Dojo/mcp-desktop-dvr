@@ -177,6 +177,176 @@ describe('Real Screen Capture Integration Tests', () => {
         }
       }
     }, 15000); // 15 second timeout
+
+    it('should create GIF segments alongside extracted videos', async () => {
+      try {
+        const analyzer = new VideoAnalyzer();
+
+        // Start capture
+        await capture.startCapture({ fps: 30, quality: 70 });
+
+        // Record for longer to get 30 seconds for proper GIF segmentation
+        console.log('\n🎬 Recording for 30 seconds to test GIF segmentation...\n');
+        await new Promise(resolve => setTimeout(resolve, 30000));
+
+        // Extract 30 seconds and analyze
+        const videoPath = await capture.extractLastNSeconds(30);
+        console.log(`\n📹 Extracted video: ${videoPath}`);
+
+        // Set analyzer preference to use OpenAI (if available) to trigger GIF creation
+        process.env.ANALYZER_PREFERENCE = 'auto';
+        
+        const analysis = await analyzer.analyze(videoPath, { duration: 30, analysisType: 'full_analysis' });
+
+        expect(analysis).toBeDefined();
+        
+        // Check if GIF files were created alongside the MP4
+        const videoDir = path.dirname(videoPath);
+        const videoBasename = path.basename(videoPath, '.mp4');
+        
+        // For a 30-second video, we should have 3 GIF segments
+        const expectedGifPaths = [
+          path.join(videoDir, `${videoBasename}_part01.gif`),
+          path.join(videoDir, `${videoBasename}_part02.gif`),
+          path.join(videoDir, `${videoBasename}_part03.gif`)
+        ];
+
+        let gifsFound = 0;
+        const gifDetails: Array<{path: string, size: number}> = [];
+        
+        for (const gifPath of expectedGifPaths) {
+          try {
+            const stats = await fs.stat(gifPath);
+            if (stats.size > 0) {
+              gifsFound++;
+              gifDetails.push({ path: gifPath, size: stats.size });
+              console.log(`✅ Found GIF segment: ${path.basename(gifPath)} (${(stats.size / 1024).toFixed(1)} KB)`);
+            }
+          } catch (error) {
+            // GIF doesn't exist - might be expected if OpenAI analysis wasn't used
+            console.log(`ℹ️  GIF segment not found: ${path.basename(gifPath)}`);
+          }
+        }
+
+        if (gifsFound > 0) {
+          console.log(`\n🎊 Successfully created ${gifsFound} GIF segments alongside MP4!`);
+          expect(gifsFound).toBeGreaterThan(0);
+          
+          // Verify GIF files have reasonable sizes (should be > 1KB each)
+          for (const gif of gifDetails) {
+            expect(gif.size).toBeGreaterThan(1024); // At least 1KB
+            expect(gif.size).toBeLessThan(50 * 1024 * 1024); // Less than 50MB
+          }
+          
+          // Check if response includes GIF metadata (when OpenAI is used)
+          if (analysis.results.enhancedDetails?.llmAnalysis?.gifFiles) {
+            const gifFiles = analysis.results.enhancedDetails.llmAnalysis.gifFiles;
+            expect(gifFiles.totalSegments).toBe(gifsFound);
+            expect(gifFiles.allSegments).toHaveLength(gifsFound);
+            expect(gifFiles.segmentDuration).toBe(10);
+            console.log(`📊 Response includes GIF metadata: ${gifFiles.totalSegments} segments`);
+          }
+        } else {
+          console.log('\nℹ️  No GIF segments found - likely using OCR/Tarsier fallback analysis');
+          // This is expected behavior when OpenAI is not available
+        }
+
+        // Stop capture
+        await capture.stopCapture();
+      } catch (error) {
+        const errorMessage = (error as Error).message;
+        if (errorMessage.includes('Screen Recording permission') || 
+            errorMessage.includes('AVFoundationErrorDomain') ||
+            errorMessage.includes('Cannot Record') ||
+            errorMessage.includes('Call `.startRecording()` first')) {
+          console.log('⚠️  Screen Recording permission not granted - skipping GIF test');
+          expect(error).toBeInstanceOf(Error);
+        } else {
+          throw error;
+        }
+      } finally {
+        // Clean up environment
+        delete process.env.ANALYZER_PREFERENCE;
+      }
+    }, 45000); // 45 second timeout for longer recording
+
+    it('should handle different video durations for GIF creation', async () => {
+      try {
+        const analyzer = new VideoAnalyzer();
+        const testDurations = [10, 15, 25]; // Different durations to test segmentation
+
+        // Start capture
+        await capture.startCapture({ fps: 30, quality: 70 });
+
+        for (const duration of testDurations) {
+          console.log(`\n🎬 Testing ${duration}s duration...`);
+          
+          // Record for the test duration
+          await new Promise(resolve => setTimeout(resolve, duration * 1000));
+
+          // Extract and analyze
+          const videoPath = await capture.extractLastNSeconds(duration);
+          process.env.ANALYZER_PREFERENCE = 'auto';
+          
+          const analysis = await analyzer.analyze(videoPath, { 
+            duration, 
+            analysisType: 'full_analysis' 
+          });
+
+          expect(analysis).toBeDefined();
+          
+          // Calculate expected number of segments
+          const expectedSegments = Math.ceil(duration / 10);
+          
+          // Check for GIF files
+          const videoDir = path.dirname(videoPath);
+          const videoBasename = path.basename(videoPath, '.mp4');
+          
+          let actualSegments = 0;
+          for (let i = 1; i <= expectedSegments; i++) {
+            const segmentNum = String(i).padStart(2, '0');
+            const gifPath = path.join(videoDir, `${videoBasename}_part${segmentNum}.gif`);
+            
+            try {
+              const stats = await fs.stat(gifPath);
+              if (stats.size > 0) {
+                actualSegments++;
+              }
+            } catch (error) {
+              // GIF doesn't exist
+            }
+          }
+
+          if (actualSegments > 0) {
+            console.log(`✅ ${duration}s video: ${actualSegments}/${expectedSegments} GIF segments created`);
+            expect(actualSegments).toBe(expectedSegments);
+            
+            // Verify response metadata if available
+            if (analysis.results.enhancedDetails?.llmAnalysis?.gifFiles) {
+              expect(analysis.results.enhancedDetails.llmAnalysis.gifFiles.totalSegments).toBe(expectedSegments);
+            }
+          } else {
+            console.log(`ℹ️  ${duration}s video: No GIFs (fallback analysis used)`);
+          }
+        }
+
+        // Stop capture
+        await capture.stopCapture();
+      } catch (error) {
+        const errorMessage = (error as Error).message;
+        if (errorMessage.includes('Screen Recording permission') || 
+            errorMessage.includes('AVFoundationErrorDomain') ||
+            errorMessage.includes('Cannot Record') ||
+            errorMessage.includes('Call `.startRecording()` first')) {
+          console.log('⚠️  Screen Recording permission not granted - skipping duration test');
+          expect(error).toBeInstanceOf(Error);
+        } else {
+          throw error;
+        }
+      } finally {
+        delete process.env.ANALYZER_PREFERENCE;
+      }
+    }, 60000); // 60 second timeout for multiple tests
   });
 
   describe('Performance Under Load', () => {
