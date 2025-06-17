@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/randroids-dojo-mcp-desktop-dvr-badge.png)](https://mseep.ai/app/randroids-dojo-mcp-desktop-dvr)
+
 # MCP Desktop DVR
 
 ✅ **PRODUCTION READY**
